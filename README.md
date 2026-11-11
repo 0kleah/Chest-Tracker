@@ -16,22 +16,33 @@ Download **PirateTokenOdds.exe** from the **[latest release](https://github.com/
 
 Double-click the .exe and pick from the menu:
 
-1. **Start the chest counter.** Leave it running while you play. Press Ctrl+C in its window to stop.
+1. **Start the chest counter + overlay.** Leave it running while you play. Stop it with Ctrl+C in its window, or right-click the overlay and choose Quit.
 2. **Show my Pirate Token odds**, based on the chests it has counted.
 3. **Odds calculator**, where you type in your own numbers.
 4. **Test a screenshot**, for when chests aren't being detected.
 5. **Reset my chest count to zero.**
 
+### The overlay
+
+A small panel floats on top of Fortnite with your chest count and Pirate Token odds. It never takes focus away from the game.
+
+- **F6** switches between **move mode** (dashed blue border, drag it anywhere) and **locked** (clicks pass straight through it into the game). It remembers where you put it.
+- While you're playing (Fortnite active with your cursor captured) it's **always click-through**, even in move mode, so a click can never pull focus away from the game. Move it from Fortnite's menus (cursor visible) or after alt-tabbing.
+- **Right-click** it (in move mode) for Treasure Hours, add/undo a chest, see-through level, and Quit.
+- The dot is **green** while it's watching Fortnite, **gold** while a chest prompt is on screen, and grey when Fortnite isn't the active window. The count flashes gold when a chest is counted.
+- Don't want it? Run `PirateTokenOdds.exe --no-overlay`.
+
 Hotkeys while you play:
 
 | Key | Does |
 |-----|------|
+| F6  | Overlay: move mode / locked |
 | F7  | Add a chest it missed |
 | F8  | Undo the last chest |
 | F9  | Turn Treasure Hours on/off (those chests use the boosted odds) |
 
 Tips:
-- Play in **Windowed Fullscreen**. Exclusive fullscreen can capture as a black screen.
+- Play in **Windowed Fullscreen**. Exclusive fullscreen can capture as a black screen, and no overlay can draw over it.
 - It only counts while Fortnite is the active window.
 - Rebound interact? Run it with an option, e.g. `PirateTokenOdds.exe --key F` or `--pad-button A`.
 - Not detecting chests? Run `PirateTokenOdds.exe --debug` to see what text it reads on screen.
@@ -74,8 +85,9 @@ pyinstaller --onefile --console --name PirateTokenOdds --collect-all winrt pirat
 
 - `pirate_token_app.py`: the menu (this is what the .exe runs)
 - `chest_counter.py`: screen and keypress chest detection
+- `overlay.py`: the movable on-top overlay
 - `pirate_token_odds.py`: odds calculator
-- `chest_counts.json`: your saved count (created next to the .exe, not uploaded)
+- `chest_counts.json` / `overlay_settings.json`: your saved count and overlay position (created next to the .exe, not uploaded)
 
 Not affiliated with or endorsed by Epic Games. Fortnite is a trademark of Epic Games, Inc.
 

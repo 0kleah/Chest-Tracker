@@ -12,14 +12,18 @@ It only reads your screen and key presses. It never touches the game's
 memory, so it's the same kind of thing OBS / Medal do (anti-cheat safe).
 Play in "Windowed Fullscreen" - exclusive fullscreen can capture as black.
 
+An overlay sits on top of Fortnite showing your count (see overlay.py).
+
 Hotkeys (work while in game):
+  F6  overlay: switch between move mode and locked (click-through)
   F7  add a chest by hand (if it missed one)
   F8  undo the last chest
   F9  toggle Treasure Hours on/off (chests count toward the boosted odds)
-  Ctrl+C in this window to quit
+  Ctrl+C in this window (or Quit in the overlay's right-click menu) to quit
 
 Usage:
   python chest_counter.py
+  python chest_counter.py --no-overlay       # console only
   python chest_counter.py --debug            # print what it reads on screen
   python chest_counter.py --test-image shot.png   # check a screenshot
   python chest_counter.py --key F --pad-button A  # if you rebound interact
@@ -47,6 +51,7 @@ from pirate_token_odds import DEFAULT_BOOST, app_dir, chance_at_least_one
 
 HERE = app_dir()
 COUNTS_FILE = os.path.join(HERE, "chest_counts.json")
+OVERLAY_SETTINGS = os.path.join(HERE, "overlay_settings.json")
 
 # Part of the screen to read, as fractions of the monitor (left, top, right, bottom).
 # Fortnite's interact prompt sits just right of / below the crosshair.
@@ -315,6 +320,125 @@ def test_image(path, region, loose):
     print("Saved the area it looked at to test_image_crop.png")
 
 
+class CounterState:
+    """Counts + live status, shared by the detection thread, hotkeys and the overlay."""
+
+    def __init__(self, data, boost, quiet):
+        self.lock = threading.RLock()
+        self.data, self.boost, self.quiet = data, boost, quiet
+        self.treasure_mode = False
+        self.prompt = False
+        self.focused = False
+        self.running = True
+        self.toggle_lock_requested = False
+
+    def add_chest(self, source):
+        with self.lock:
+            bucket = "treasure" if self.treasure_mode else "normal"
+            self.data[bucket] += 1
+            self.data["log"].append({"time": datetime.now().isoformat(timespec="seconds"),
+                                     "treasure": self.treasure_mode, "source": source})
+            save_counts(self.data)
+            line = odds_line(self.data, self.boost)
+        if not self.quiet:
+            beep()
+        print(f"\n[+] Chest opened ({source}). {line}")
+
+    def undo(self):
+        with self.lock:
+            if not self.data["log"]:
+                return
+            last = self.data["log"].pop()
+            bucket = "treasure" if last["treasure"] else "normal"
+            self.data[bucket] = max(0, self.data[bucket] - 1)
+            save_counts(self.data)
+            line = odds_line(self.data, self.boost)
+        print(f"\n[-] Undid last chest. {line}")
+
+    def toggle_treasure(self):
+        with self.lock:
+            self.treasure_mode = not self.treasure_mode
+            on = self.treasure_mode
+        print(f"\nTreasure Hours {'ON - chests count with the ' + format(self.boost, 'g') + 'x boost' if on else 'OFF'}")
+
+    def request_lock_toggle(self):
+        with self.lock:
+            self.toggle_lock_requested = True
+
+    def stop(self):
+        self.running = False
+
+    def snapshot(self):
+        with self.lock:
+            snap = {
+                "normal": self.data["normal"], "treasure": self.data["treasure"],
+                "chance": chance_at_least_one(self.data["normal"], self.data["treasure"], self.boost),
+                "boost": self.boost, "treasure_mode": self.treasure_mode, "prompt": self.prompt,
+                "focused": self.focused, "running": self.running, "toggle_lock": self.toggle_lock_requested,
+            }
+            self.toggle_lock_requested = False
+            return snap
+
+
+def detection_loop(args, state, region, show_status):
+    """Reads the screen and hotkeys until state.running goes False."""
+    pad_mask = 0 if args.pad_button.lower() == "none" else PAD_BUTTONS[args.pad_button.upper()]
+    watcher = InteractWatcher(vk_from_name(args.key), pad_mask)
+    watcher.start()
+    reader = ScreenReader(region, args.monitor)     # created in this thread (screen capture is per-thread)
+    detector = ChestDetector(min_hold=args.min_hold)
+    hotkeys = {"F6": state.request_lock_toggle, "F7": lambda: state.add_chest("manual"),
+               "F8": state.undo, "F9": state.toggle_treasure}
+    vks = {name: vk_from_name(name) for name in hotkeys}
+    was_down = {name: False for name in hotkeys}
+    last_text, last_debug_save = None, 0.0
+
+    while state.running:
+        frame_start = time.monotonic()
+        for name, action in hotkeys.items():
+            down = key_down(vks[name])
+            if down and not was_down[name]:
+                action()
+            was_down[name] = down
+
+        focused = args.any_window or fortnite_focused()
+        state.focused = focused
+        if not focused:
+            detector.reset_prompt()
+            state.prompt = False
+            if show_status:
+                sys.stdout.write("\r  Waiting for Fortnite to be the active window...      ")
+                sys.stdout.flush()
+            time.sleep(0.25)
+            continue
+
+        frame = reader.grab()
+        lines = reader.read_lines(frame)
+        visible = looks_like_chest_prompt(lines, args.loose)
+        state.prompt = visible
+        now = time.monotonic()
+        if detector.update(now, visible, watcher.snapshot(now)):
+            state.add_chest("auto")
+
+        if args.debug:
+            text = " | ".join(lines)
+            if text != last_text:
+                print(f"\n[debug] chest prompt={visible}  text: {text[:150]}")
+                last_text = text
+            if now - last_debug_save > 3:
+                from PIL import Image
+                Image.fromarray(frame[:, :, [2, 1, 0]]).save(os.path.join(HERE, "debug_crop.png"))
+                last_debug_save = now
+
+        if show_status:
+            total = state.data["normal"] + state.data["treasure"]
+            sys.stdout.write(f"\r  Chests: {total:,}  | prompt: {'CHEST' if visible else '-----'}  | "
+                             f"Treasure Hours: {'ON ' if state.treasure_mode else 'off'}   ")
+            sys.stdout.flush()
+
+        time.sleep(max(0.0, 0.15 - (time.monotonic() - frame_start)))
+
+
 def main():
     ap = argparse.ArgumentParser(description="Counts the chests you open in Fortnite.")
     ap.add_argument("--key", default="E", help="interact key (default E)")
@@ -325,6 +449,7 @@ def main():
     ap.add_argument("--boost", type=float, default=DEFAULT_BOOST, help="Treasure Hours multiplier (default 1.5)")
     ap.add_argument("--loose", action="store_true", help="count any prompt containing 'chest' (if it misses chests)")
     ap.add_argument("--any-window", action="store_true", help="don't require Fortnite to be the active window")
+    ap.add_argument("--no-overlay", action="store_true", help="don't show the on-screen overlay")
     ap.add_argument("--quiet", action="store_true", help="no beep when a chest is counted")
     ap.add_argument("--debug", action="store_true", help="print the text it reads and save debug_crop.png")
     ap.add_argument("--test-image", help="run detection on a screenshot file and exit")
@@ -343,85 +468,41 @@ def main():
         save_counts(data)
         print("Count reset to zero.")
 
-    pad_mask = 0 if args.pad_button.lower() == "none" else PAD_BUTTONS[args.pad_button.upper()]
-    watcher = InteractWatcher(vk_from_name(args.key), pad_mask)
-    watcher.start()
-    reader = ScreenReader(region, args.monitor)
-    detector = ChestDetector(min_hold=args.min_hold)
-    treasure_mode = False
-    hotkeys = {"add": vk_from_name("F7"), "undo": vk_from_name("F8"), "treasure": vk_from_name("F9")}
-    hotkey_was_down = {k: False for k in hotkeys}
-
-    def add_chest(source):
-        bucket = "treasure" if treasure_mode else "normal"
-        data[bucket] += 1
-        data["log"].append({"time": datetime.now().isoformat(timespec="seconds"), "treasure": treasure_mode, "source": source})
-        save_counts(data)
-        if not args.quiet:
-            beep()
-        print(f"\n[+] Chest opened ({source}). {odds_line(data, args.boost)}")
-
-    print("Fortnite chest counter running. F7 = add, F8 = undo, F9 = Treasure Hours, Ctrl+C = quit")
-    print(f"Interact: key {args.key.upper()}" + (f" / controller {args.pad_button.upper()}" if pad_mask else ""))
+    state = CounterState(data, args.boost, args.quiet)
+    print("Fortnite chest counter running.")
+    print("Hotkeys: F6 = move/lock overlay, F7 = add, F8 = undo, F9 = Treasure Hours")
+    print(f"Interact: key {args.key.upper()}" + ("" if args.pad_button.lower() == "none" else f" / controller {args.pad_button.upper()}"))
     print("Starting at:", odds_line(data, args.boost))
-    if not _xinput and pad_mask:
+    print("Quit with Ctrl+C here, or right-click the overlay -> Quit.")
+    if not _xinput and args.pad_button.lower() != "none":
         print("(No XInput found - controller detection off)")
 
-    last_text, last_debug_save = None, 0.0
     try:
-        while True:
-            frame_start = time.monotonic()
+        if args.no_overlay:
+            detection_loop(args, state, region, show_status=True)
+        else:
+            from overlay import Overlay
+            errors = []
 
-            # hotkeys
-            for name, vk in hotkeys.items():
-                down = key_down(vk)
-                if down and not hotkey_was_down[name]:
-                    if name == "add":
-                        add_chest("manual")
-                    elif name == "undo" and data["log"]:
-                        last = data["log"].pop()
-                        data["treasure" if last["treasure"] else "normal"] -= 1
-                        save_counts(data)
-                        print(f"\n[-] Undid last chest. {odds_line(data, args.boost)}")
-                    elif name == "treasure":
-                        treasure_mode = not treasure_mode
-                        print(f"\nTreasure Hours {'ON - chests count with the ' + str(args.boost) + 'x boost' if treasure_mode else 'OFF'}")
-                hotkey_was_down[name] = down
+            def worker():
+                try:
+                    detection_loop(args, state, region, show_status=False)
+                except Exception as e:      # surface errors instead of dying silently
+                    errors.append(e)
+                    import traceback
+                    traceback.print_exc()
+                    state.stop()
 
-            focused = args.any_window or fortnite_focused()
-            if not focused:
-                detector.reset_prompt()
-                sys.stdout.write("\r  Waiting for Fortnite to be the active window...      ")
-                sys.stdout.flush()
-                time.sleep(0.5)
-                continue
-
-            frame = reader.grab()
-            lines = reader.read_lines(frame)
-            visible = looks_like_chest_prompt(lines, args.loose)
-            now = time.monotonic()
-            if detector.update(now, visible, watcher.snapshot(now)):
-                add_chest("auto")
-
-            if args.debug:
-                text = " | ".join(lines)
-                if text != last_text:
-                    print(f"\n[debug] chest prompt={visible}  text: {text[:150]}")
-                    last_text = text
-                if now - last_debug_save > 3:
-                    from PIL import Image
-                    Image.fromarray(frame[:, :, [2, 1, 0]]).save(os.path.join(HERE, "debug_crop.png"))
-                    last_debug_save = now
-
-            total = data["normal"] + data["treasure"]
-            status = f"\r  Chests: {total:,}  | prompt: {'CHEST' if visible else '-----'}  | Treasure Hours: {'ON ' if treasure_mode else 'off'}   "
-            sys.stdout.write(status)
-            sys.stdout.flush()
-
-            time.sleep(max(0.0, 0.15 - (time.monotonic() - frame_start)))
+            threading.Thread(target=worker, daemon=True).start()
+            Overlay(state, OVERLAY_SETTINGS).run()
+            if errors:
+                raise errors[0]
     except KeyboardInterrupt:
-        print("\n\nStopped. Final:", odds_line(data, args.boost))
-        print(f"Counts saved to {COUNTS_FILE}")
+        pass
+    finally:
+        state.stop()
+    print("\n\nStopped. Final:", odds_line(data, args.boost))
+    print(f"Counts saved to {COUNTS_FILE}")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 # your personal chest count + debug output
 chest_counts.json
 chest_counts.json.tmp
+overlay_settings.json
 debug_crop.png
 test_image_crop.png
 

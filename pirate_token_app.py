@@ -41,7 +41,7 @@ def menu():
         print("   FORTNITE PIRATE TOKEN ODDS")
         print(f"   Chests counted so far: {total}")
         print("=" * 50)
-        print("   1) Start the chest counter (play Fortnite)")
+        print("   1) Start the chest counter + overlay (play Fortnite)")
         print("   2) Show my Pirate Token odds")
         print("   3) Odds calculator (type in your own numbers)")
         print("   4) Test a screenshot (if chests aren't detected)")
@@ -53,7 +53,8 @@ def menu():
             return
 
         if choice == "1":
-            print("\nTip: play in Windowed Fullscreen. Press Ctrl+C here to stop counting.\n")
+            print("\nTip: play in Windowed Fullscreen so the overlay shows on top.")
+            print("F6 moves/locks the overlay. Stop with Ctrl+C here or right-click the overlay -> Quit.\n")
             run(chest_counter.main, [])
             pause()
         elif choice == "2":
