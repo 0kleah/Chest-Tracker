@@ -10,3 +10,6 @@ __pycache__/
 build/
 dist/
 *.spec
+
+# the .exe is published on the Releases page, not in the repo
+*.exe

@@ -1,12 +1,14 @@
 # Chest-Tracker
 
+> **Disclaimer:** This project was coded with **Claude Opus 5.5**, Anthropic's AI model.
+
 Counts the chests you open in Fortnite, and tells you your odds of finding the **Pirate Shop Access token**.
 
 It watches your screen the way Medal spots kills: when the chest's **"Chest / Search"** prompt is near your crosshair, you hold interact, and the prompt disappears, that's one chest opened. Your count is saved between sessions and turned into live odds.
 
 ## Download
 
-Download **[PirateTokenOdds.exe](PirateTokenOdds.exe)** (click it, then the download button), put it in its own folder and double-click it. You don't need Python.
+Download **PirateTokenOdds.exe** from the **[latest release](https://github.com/0kleah/Chest-Tracker/releases/latest)**, put it in its own folder and double-click it. You don't need Python.
 
 > Windows may say "Windows protected your PC" because the .exe isn't signed. Click **More info → Run anyway**. Some antivirus tools also flag it because it reads the screen and keypresses. The full source is here if you'd rather run or build it yourself.
 
