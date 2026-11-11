@@ -1,0 +1,12 @@
+# your personal chest count + debug output
+chest_counts.json
+chest_counts.json.tmp
+debug_crop.png
+test_image_crop.png
+
+# python / build
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec

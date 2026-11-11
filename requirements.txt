@@ -1,0 +1,7 @@
+mss>=10
+numpy
+pillow
+winrt-Windows.Media.Ocr
+winrt-Windows.Graphics.Imaging
+winrt-Windows.Storage.Streams
+winrt-Windows.Globalization
