@@ -1,0 +1,489 @@
+<Window x:Class="ChestTracker.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Chest Tracker" Width="1060" Height="800" MinWidth="920" MinHeight="640"
+        WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResize"
+        Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
+        FontFamily="{StaticResource UiFont}" FontSize="13" Icon="chest.ico"
+        UseLayoutRounding="True" SnapsToDevicePixels="True">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="48" ResizeBorderThickness="6" CornerRadius="0"
+                      GlassFrameThickness="0" UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Border x:Name="RootBorder">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="48"/>
+                <RowDefinition/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="92"/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ======================================================== sidebar -->
+            <Border Grid.RowSpan="2" Background="{StaticResource Sidebar}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0"/>
+            <Image Source="{StaticResource ChestIcon}" Width="30" Height="30" VerticalAlignment="Bottom" Margin="0,0,0,2"/>
+
+            <StackPanel Grid.Row="1" Margin="0,18,0,0">
+                <RadioButton x:Name="NavHome" Style="{StaticResource NavButton}" Tag="&#xE80F;" Content="Home" IsChecked="True" Checked="Nav_Checked"/>
+                <RadioButton x:Name="NavOdds" Style="{StaticResource NavButton}" Tag="&#xE8EF;" Content="Odds" Checked="Nav_Checked"/>
+                <RadioButton x:Name="NavSettings" Style="{StaticResource NavButton}" Tag="&#xE713;" Content="Settings" Checked="Nav_Checked"/>
+            </StackPanel>
+            <TextBlock x:Name="VersionText" Grid.Row="1" Text="v2.0" Foreground="{StaticResource TextFaint}" FontSize="11"
+                       HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,16"/>
+
+            <!-- ======================================================== title bar -->
+            <Grid Grid.Column="1">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="28,4,0,0">
+                    <TextBlock Text="Chest Tracker" FontSize="13" FontWeight="SemiBold"/>
+                    <TextBlock Text="  ·  Pirate Token odds" FontSize="13" Foreground="{StaticResource TextFaint}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
+                            WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Style="{StaticResource ChromeButton}" Content="&#xE921;" Click="Minimize_Click" ToolTip="Minimize"/>
+                    <Button x:Name="MaxButton" Style="{StaticResource ChromeButton}" Content="&#xE922;" Click="Maximize_Click" ToolTip="Maximize"/>
+                    <Button Style="{StaticResource CloseButton}" Content="&#xE8BB;" Click="Close_Click" ToolTip="Close"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- ======================================================== pages -->
+            <Grid Grid.Row="1" Grid.Column="1">
+
+                <!-- ==================================================== HOME -->
+                <ScrollViewer x:Name="HomePage" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="28,6,28,28">
+                        <Grid Margin="0,0,0,20">
+                            <StackPanel>
+                                <TextBlock Text="Your treasure hunt" Style="{StaticResource PageTitle}"/>
+                                <TextBlock Text="Every chest is a 1 in 137,500 shot at the Pirate Shop Access token."
+                                           Style="{StaticResource Hint}" FontSize="13" Margin="0,5,0,0"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <Border CornerRadius="18" Padding="14,8" Background="{StaticResource Surface}"
+                                        BorderBrush="{StaticResource Line}" BorderThickness="1" Margin="0,0,12,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse x:Name="StatusDot" Width="9" Height="9" Fill="{StaticResource TextFaint}" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="StatusText" Text="Not tracking" Margin="9,0,0,0" FontSize="12.5" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                                <Button x:Name="StartButton" Style="{StaticResource PrimaryButton}" Click="Start_Click" MinWidth="164">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="StartIcon" FontFamily="{StaticResource IconFont}" Text="&#xE768;" VerticalAlignment="Center" FontSize="12"/>
+                                        <TextBlock x:Name="StartLabel" Text="Start tracking" Margin="9,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+
+                        <Border x:Name="ErrorBanner" Visibility="Collapsed" CornerRadius="12" Padding="16,12" Margin="0,0,0,16"
+                                Background="#22FF5D5D" BorderBrush="#55FF5D5D" BorderThickness="1">
+                            <TextBlock x:Name="ErrorText" Foreground="#FFB0B0" TextWrapping="Wrap"/>
+                        </Border>
+
+                        <!-- row 1: count + chance -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="11*"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="9*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Style="{StaticResource HeroCard}" Padding="26,22">
+                                <Grid>
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Image Source="{StaticResource ChestIcon}" Width="16" Height="16"/>
+                                            <TextBlock Text="CHESTS OPENED" Style="{StaticResource Label}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <TextBlock x:Name="CountText" Text="0" FontSize="84" FontWeight="Bold" Margin="-3,2,0,0"/>
+                                        <TextBlock x:Name="BreakdownText" Text="0 normal · 0 in Treasure Hours" Style="{StaticResource Hint}" FontSize="13"/>
+                                        <TextBlock x:Name="TodayText" Text="0 today" Foreground="{StaticResource Gold}" FontSize="13" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right">
+                                        <Button Style="{StaticResource SecondaryButton}" Click="Undo_Click" ToolTip="Undo the last chest (F8)">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE7A7;" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Undo" Margin="8,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource SecondaryButton}" Click="Add_Click" Margin="8,0,0,0" ToolTip="Add a chest it missed (F7)">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE710;" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Add chest" Margin="8,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <Border Grid.Column="2" Style="{StaticResource Card}" Padding="26,22">
+                                <StackPanel>
+                                    <TextBlock Text="PIRATE TOKEN CHANCE" Style="{StaticResource Label}"/>
+                                    <TextBlock x:Name="ChanceText" Text="0%" FontSize="46" FontWeight="Bold" Foreground="{StaticResource Gold}" Margin="-2,8,0,0"/>
+                                    <TextBlock x:Name="OneInText" Text="No chests yet" Style="{StaticResource Hint}" FontSize="13"/>
+                                    <Grid Margin="0,26,0,8">
+                                        <TextBlock Text="Progress to a 50% chance" FontSize="12.5" Foreground="{StaticResource TextDim}"/>
+                                        <TextBlock x:Name="ProgressText" Text="0%" FontSize="12.5" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                    <ProgressBar x:Name="HalfProgress" Style="{StaticResource GoldProgress}" Maximum="1" Value="0"/>
+                                    <TextBlock x:Name="RemainingText" Text="95,308 chests to go" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- row 2: controls + recent -->
+                        <Grid Margin="0,16,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="9*"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="11*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Controls" Style="{StaticResource CardTitle}" Margin="0,0,0,14"/>
+                                    <CheckBox x:Name="TreasureSwitch" Style="{StaticResource Switch}" Click="TreasureSwitch_Click">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="Treasure Hours" FontWeight="SemiBold"/>
+                                                <Border Background="{StaticResource OrangeSoft}" CornerRadius="5" Padding="6,1" Margin="8,0,0,0">
+                                                    <TextBlock x:Name="BoostText" Text="1.5x" Foreground="{StaticResource Orange}" FontSize="11" FontWeight="SemiBold"/>
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="Turn on during Saturday Treasure Hours · F9" Style="{StaticResource Hint}" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                    </CheckBox>
+                                    <Border Style="{StaticResource Divider}"/>
+                                    <CheckBox x:Name="OverlaySwitch" Style="{StaticResource Switch}" Click="OverlaySwitch_Click">
+                                        <StackPanel>
+                                            <TextBlock Text="Overlay" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Shows your count on top of Fortnite" Style="{StaticResource Hint}" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                    </CheckBox>
+                                    <Border Style="{StaticResource Divider}"/>
+                                    <CheckBox x:Name="LockSwitch" Style="{StaticResource Switch}" Click="LockSwitch_Click">
+                                        <StackPanel>
+                                            <TextBlock Text="Lock overlay" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Clicks pass through it · F6 · always on while you play" Style="{StaticResource Hint}" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                    </CheckBox>
+                                    <Border Style="{StaticResource Divider}"/>
+                                    <TextBlock Text="Been counting already?" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Type how many chests you opened before using Chest Tracker (counted by hand or with another tracker) and press Add. It's added on top of what the tracker counts, and replays never change it."
+                                               Style="{StaticResource Hint}" Margin="0,3,0,10" TextWrapping="Wrap"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="AlreadyOpenedBox" Style="{StaticResource Input}" Text="" MaxLength="9"
+                                                 PreviewTextInput="Digits_PreviewTextInput" DataObject.Pasting="Digits_Pasting"
+                                                 KeyDown="AlreadyOpenedBox_KeyDown" TextChanged="AlreadyOpenedBox_TextChanged"
+                                                 ToolTip="Number of chests, e.g. 250"/>
+                                        <TextBlock x:Name="AlreadyOpenedPlaceholder" Text="e.g. 250" IsHitTestVisible="False" FontSize="14"
+                                                   Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" Margin="13,0,0,0"/>
+                                        <Button x:Name="AlreadyOpenedButton" Grid.Column="1" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0"
+                                                Click="AddAlreadyOpened_Click" IsEnabled="False" Padding="16,9">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE710;" VerticalAlignment="Center" FontSize="11"/>
+                                                <TextBlock Text="Add" Margin="8,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                    <CheckBox x:Name="AlreadyOpenedTreasure" Style="{StaticResource Switch}" Margin="0,10,0,0">
+                                        <TextBlock Text="These were opened in Treasure Hours (1.5x odds)" Style="{StaticResource Hint}" VerticalAlignment="Center"/>
+                                    </CheckBox>
+                                    <TextBlock x:Name="AlreadyOpenedResult" Style="{StaticResource Hint}" Margin="0,8,0,0" Visibility="Collapsed" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Style="{StaticResource Card}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="Recent chests" Style="{StaticResource CardTitle}" Margin="0,0,0,14"/>
+                                    <TextBlock x:Name="RecentEmpty" Grid.Row="1" Style="{StaticResource Hint}" FontSize="13"
+                                               Text="Chests you open will show up here. Start tracking, then hop into a match."
+                                               VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" MaxWidth="280"/>
+                                    <ItemsControl x:Name="RecentList" Grid.Row="1">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,0,0,10">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Width="34" Height="34" CornerRadius="9" Background="{StaticResource Surface2}">
+                                                        <Image Source="{StaticResource ChestIcon}" Width="17" Height="17"/>
+                                                    </Border>
+                                                    <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="{Binding Detail}" FontSize="11.5" Foreground="{StaticResource TextDim}" Margin="0,2,0,0"/>
+                                                    </StackPanel>
+                                                    <Border Grid.Column="2" CornerRadius="6" Padding="7,2" Background="{StaticResource OrangeSoft}"
+                                                            Visibility="{Binding TreasureVisibility}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Treasure Hours" FontSize="10.5" Foreground="{StaticResource Orange}" FontWeight="SemiBold"/>
+                                                    </Border>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <TextBlock Margin="2,18,0,0" Style="{StaticResource Hint}"
+                                   Text="Chests are added a few seconds after each match ends.   F6 move/lock overlay   ·   F7 add a missed chest   ·   F8 undo   ·   F9 Treasure Hours"/>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ==================================================== ODDS -->
+                <ScrollViewer x:Name="OddsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="28,6,28,28">
+                        <TextBlock Text="Odds calculator" Style="{StaticResource PageTitle}"/>
+                        <TextBlock Text="Try any number of chests. Every chest is an independent roll, so earlier bad luck doesn't make the next one more likely."
+                                   Style="{StaticResource Hint}" FontSize="13" Margin="0,5,0,20"/>
+
+                        <Border Style="{StaticResource Card}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition Width="14"/>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition Width="14"/>
+                                    <ColumnDefinition Width="0.7*"/>
+                                    <ColumnDefinition Width="14"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="NORMAL CHESTS" Style="{StaticResource Label}" Margin="0,0,0,7"/>
+                                    <TextBox x:Name="CalcNormal" Style="{StaticResource Input}" Text="1000" TextChanged="Calc_TextChanged"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="TREASURE HOURS CHESTS" Style="{StaticResource Label}" Margin="0,0,0,7"/>
+                                    <TextBox x:Name="CalcTreasure" Style="{StaticResource Input}" Text="0" TextChanged="Calc_TextChanged"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="BOOST" Style="{StaticResource Label}" Margin="0,0,0,7"/>
+                                    <TextBox x:Name="CalcBoost" Style="{StaticResource Input}" Text="1.5" TextChanged="Calc_TextChanged"/>
+                                </StackPanel>
+                                <Button Grid.Column="6" Style="{StaticResource SecondaryButton}" VerticalAlignment="Bottom" Click="UseMyCount_Click" Padding="16,10">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE77B;" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Use my count" Margin="8,0,0,0"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource HeroCard}" Margin="0,16,0,0">
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock Text="CHANCE OF AT LEAST ONE TOKEN" Style="{StaticResource Label}"/>
+                                    <TextBlock x:Name="CalcChance" Text="0%" FontSize="52" FontWeight="Bold" Foreground="{StaticResource Gold}" Margin="-2,6,0,0"/>
+                                    <TextBlock x:Name="CalcOneIn" Text="" Style="{StaticResource Hint}" FontSize="13"/>
+                                </StackPanel>
+                                <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <TextBlock Text="PER CHEST" Style="{StaticResource Label}" HorizontalAlignment="Right"/>
+                                    <TextBlock Text="1 in 137,500" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                                    <TextBlock x:Name="CalcBoostedPer" Text="1 in 91,667 in Treasure Hours" Style="{StaticResource Hint}" HorizontalAlignment="Right"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,14">
+                                    <TextBlock Text="Chests needed for a ... chance" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <TextBlock Text="Chests per match" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                        <TextBox x:Name="CalcPerMatch" Style="{StaticResource Input}" Text="6" Width="64" TextChanged="Calc_TextChanged"/>
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1*"/>
+                                        <ColumnDefinition Width="1.4*"/>
+                                        <ColumnDefinition Width="1.4*"/>
+                                        <ColumnDefinition Width="1.2*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="CHANCE" Style="{StaticResource Label}"/>
+                                    <TextBlock Grid.Column="1" Text="NORMAL CHESTS" Style="{StaticResource Label}"/>
+                                    <TextBlock Grid.Column="2" Text="TREASURE HOURS CHESTS" Style="{StaticResource Label}"/>
+                                    <TextBlock Grid.Column="3" Text="MATCHES" Style="{StaticResource Label}"/>
+                                </Grid>
+                                <ItemsControl x:Name="MilestoneList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,11">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="1*"/>
+                                                        <ColumnDefinition Width="1.4*"/>
+                                                        <ColumnDefinition Width="1.4*"/>
+                                                        <ColumnDefinition Width="1.2*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Target}" FontWeight="SemiBold" Foreground="{StaticResource Gold}"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Normal}"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Treasure}"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding Matches}" Foreground="{StaticResource TextDim}"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ==================================================== SETTINGS -->
+                <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="28,6,28,28">
+                        <TextBlock Text="Settings" Style="{StaticResource PageTitle}" Margin="0,0,0,20"/>
+
+                        <!-- how chests are counted -->
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="How chests are counted" Style="{StaticResource CardTitle}" Margin="0,0,0,10"/>
+                                <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" FontSize="12.5"
+                                           Text="After each match, Chest Tracker reads the replay Fortnite saves on your PC. The replay records every chest you opened, or broke open with a pickaxe or weapon while it was still unopened, and its exact type (normal, rare, sprite). Ammo boxes and chests that were already opened don't count. It never looks at your screen or touches the game, so anti-cheat has nothing to see. Your count goes up a few seconds after each match ends."/>
+                                <Border Style="{StaticResource Divider}"/>
+
+                                <Grid>
+                                    <StackPanel Margin="0,0,190,0">
+                                        <TextBlock x:Name="ReplayStatusText" Text="Not tracking" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="ReplayDetailText" Style="{StaticResource Hint}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <Button Style="{StaticResource SecondaryButton}" Content="Open replay folder" HorizontalAlignment="Right"
+                                            VerticalAlignment="Center" Click="OpenReplays_Click"/>
+                                </Grid>
+                                <Border Style="{StaticResource Divider}"/>
+
+                                <StackPanel>
+                                    <TextBlock Text="Keep replays switched on" FontWeight="SemiBold"/>
+                                    <TextBlock Style="{StaticResource Hint}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                               Text="In Fortnite: Settings → Game → Replays → Record Battle Royale Replays: On. If you leave a match before it ends (closing the game), that match can't be read, because Fortnite only finishes the replay when the match is over."/>
+                                </StackPanel>
+                                <Border Style="{StaticResource Divider}"/>
+
+                                <Grid>
+                                    <StackPanel Margin="0,0,190,0">
+                                        <TextBlock Text="Matches from before" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="ImportHint" Style="{StaticResource Hint}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                                   Text="Fortnite keeps your last 100 or so replays. Add the chests from matches that aren't in your count yet. Anything already counted during those matches is replaced by the exact replay count, so nothing is counted twice."/>
+                                    </StackPanel>
+                                    <Button x:Name="ImportButton" Style="{StaticResource SecondaryButton}" Content="Check older replays" HorizontalAlignment="Right"
+                                            VerticalAlignment="Center" Click="ImportOlder_Click"/>
+                                </Grid>
+                                <TextBlock x:Name="ImportResult" Style="{StaticResource Hint}" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="Collapsed"/>
+                                <Border Style="{StaticResource Divider}"/>
+
+                                <CheckBox x:Name="AutoStartSwitch" Style="{StaticResource Switch}" Click="AutoStartSwitch_Click">
+                                    <StackPanel>
+                                        <TextBlock Text="Start tracking when the app opens" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <Border Style="{StaticResource Divider}"/>
+
+                                <TextBlock Text="RECENT MATCHES" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                                <TextBlock x:Name="MatchesEmpty" Style="{StaticResource Hint}" Text="Matches show up here after they end."/>
+                                <ItemsControl x:Name="MatchList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="150"/>
+                                                    <ColumnDefinition/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding When}" Foreground="{StaticResource TextDim}" FontSize="12"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding What}" FontSize="12" TextWrapping="Wrap"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- overlay & sound -->
+                        <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Overlay &amp; sound" Style="{StaticResource CardTitle}" Margin="0,0,0,16"/>
+                                <CheckBox x:Name="BeepSwitch" Style="{StaticResource Switch}" Click="BeepSwitch_Click">
+                                    <StackPanel>
+                                        <TextBlock Text="Beep when a chest is counted" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <Border Style="{StaticResource Divider}"/>
+                                <Grid>
+                                    <StackPanel>
+                                        <TextBlock Text="Overlay opacity" FontWeight="SemiBold"/>
+                                        <TextBlock Text="How see-through the overlay is." Style="{StaticResource Hint}" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <Border Style="{StaticResource SegmentHost}" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal">
+                                            <RadioButton x:Name="Op60" Style="{StaticResource Segment}" GroupName="op" Content="60%" Tag="0.6" Checked="Opacity_Checked"/>
+                                            <RadioButton x:Name="Op75" Style="{StaticResource Segment}" GroupName="op" Content="75%" Tag="0.75" Checked="Opacity_Checked"/>
+                                            <RadioButton x:Name="Op92" Style="{StaticResource Segment}" GroupName="op" Content="90%" Tag="0.92" Checked="Opacity_Checked"/>
+                                            <RadioButton x:Name="Op100" Style="{StaticResource Segment}" GroupName="op" Content="100%" Tag="1.0" Checked="Opacity_Checked"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                                <Border Style="{StaticResource Divider}"/>
+                                <Grid>
+                                    <StackPanel>
+                                        <TextBlock Text="Overlay position" FontWeight="SemiBold"/>
+                                        <TextBlock Text="Lost it off-screen? Put it back on the left side." Style="{StaticResource Hint}" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <Button Style="{StaticResource SecondaryButton}" Content="Reset position" HorizontalAlignment="Right"
+                                            VerticalAlignment="Center" Click="ResetOverlay_Click"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- data -->
+                        <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Your data" Style="{StaticResource CardTitle}" Margin="0,0,0,16"/>
+                                <Grid>
+                                    <StackPanel>
+                                        <TextBlock Text="Count file" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="DataPathText" Style="{StaticResource Hint}" Margin="0,3,280,0"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <Button Style="{StaticResource SecondaryButton}" Content="Open folder" Click="OpenFolder_Click"/>
+                                        <Button Style="{StaticResource DangerButton}" Content="Reset count" Margin="8,0,0,0" Click="ResetCount_Click"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- about -->
+                        <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                            <Grid>
+                                <StackPanel Orientation="Horizontal">
+                                    <Image Source="{StaticResource ChestIcon}" Width="36" Height="36" VerticalAlignment="Center"/>
+                                    <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock x:Name="AboutTitle" Text="Chest Tracker 2.0" FontWeight="SemiBold" FontSize="14"/>
+                                        <TextBlock Text="Coded with Claude Opus 5.5 · Open source (MIT) · Not affiliated with Epic Games" Style="{StaticResource Hint}" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                </StackPanel>
+                                <Button Style="{StaticResource LinkButton}" HorizontalAlignment="Right" VerticalAlignment="Center" Click="GitHub_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="View on GitHub"/>
+                                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE8A7;" Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Chest analysis from LED-N/Fortnite-ChestCounter (MIT, see ../LICENSE-ChestCounter), commit 1f38798.
+       Unmodified copies of src/ChestCounter/{ReplayAnalyzer,Models,Lang,ErrorLog,AppInfo}.cs. -->
+  <PropertyGroup>
+    <AssemblyName>ChestCounter.Analysis</AssemblyName>
+    <RootNamespace>ChestCounter</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FortniteReplayReader\FortniteReplayReader.csproj" />
+  </ItemGroup>
+</Project>

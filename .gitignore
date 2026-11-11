@@ -1,16 +1,27 @@
-# your personal chest count + debug output
+# your personal data (created next to the .exe)
 chest_counts.json
 chest_counts.json.tmp
-overlay_settings.json
-debug_crop.png
-test_image_crop.png
+chest_tracker_settings.json
+chest_sounds.json
+chest_counts.before-replays.json
+replays_counted.json
+replays_counted.json.tmp
+snapshots/
+crash.log
 
-# python / build
-__pycache__/
-*.pyc
-build/
-dist/
-*.spec
+# game captures used for local testing
+tests/fixtures/
+
+# build output
+bin/
+obj/
+publish/
+*.user
+.vs/
 
 # the .exe is published on the Releases page, not in the repo
 *.exe
+
+# debug output from the replay reader (Debug builds only)
+cmds/
+failed-properties*

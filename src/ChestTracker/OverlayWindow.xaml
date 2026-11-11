@@ -1,0 +1,55 @@
+<Window x:Class="ChestTracker.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Chest Tracker overlay" Width="292" SizeToContent="Height"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False" ResizeMode="NoResize"
+        FontFamily="{StaticResource UiFont}" Foreground="{StaticResource Text}"
+        UseLayoutRounding="True">
+    <Grid Margin="12">
+        <Border x:Name="Panel" CornerRadius="18" BorderThickness="1" BorderBrush="#2EFFFFFF" Padding="18,14,18,12"
+                MouseLeftButtonDown="Panel_MouseLeftButtonDown" MouseMove="Panel_MouseMove"
+                MouseLeftButtonUp="Panel_MouseLeftButtonUp" MouseRightButtonUp="Panel_MouseRightButtonUp">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#F21A2131" Offset="0"/>
+                    <GradientStop Color="#F20F131C" Offset="0.6"/>
+                    <GradientStop Color="#F21C1810" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.55" Color="Black"/>
+            </Border.Effect>
+            <StackPanel>
+                <Grid>
+                    <StackPanel Orientation="Horizontal">
+                        <Image Source="{StaticResource ChestIcon}" Width="14" Height="14" VerticalAlignment="Center"/>
+                        <TextBlock Text="OPENED" Style="{StaticResource Label}" FontSize="10.5" Margin="7,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Border x:Name="TreasureBadge" CornerRadius="5" Padding="6,1" Background="{StaticResource OrangeSoft}" Margin="0,0,8,0" Visibility="Collapsed">
+                            <TextBlock x:Name="TreasureText" Text="TREASURE HOURS 1.5x" FontSize="9.5" FontWeight="SemiBold" Foreground="{StaticResource Orange}"/>
+                        </Border>
+                        <Grid Width="12" Height="12">
+                            <Ellipse x:Name="DotGlow" Width="12" Height="12" Fill="{StaticResource Green}" Opacity="0.25"/>
+                            <Ellipse x:Name="Dot" Width="7" Height="7" Fill="{StaticResource Green}"/>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Margin="0,2,0,0">
+                    <TextBlock x:Name="CountText" Text="0" FontSize="38" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <TextBlock x:Name="ChanceText" Text="0%" FontSize="17" FontWeight="Bold" Foreground="{StaticResource Gold}" HorizontalAlignment="Right"/>
+                        <TextBlock x:Name="OneInText" Text="token chance" FontSize="10.5" Foreground="{StaticResource TextDim}" HorizontalAlignment="Right"/>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock x:Name="StatusLine" FontSize="11" Foreground="{StaticResource TextDim}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="HintText" FontSize="10.5" Foreground="{StaticResource TextFaint}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+        <Rectangle x:Name="MoveOutline" RadiusX="18" RadiusY="18" Stroke="{StaticResource Accent}" StrokeThickness="1.5"
+                   StrokeDashArray="4 3" IsHitTestVisible="False" Visibility="Collapsed"/>
+    </Grid>
+</Window>

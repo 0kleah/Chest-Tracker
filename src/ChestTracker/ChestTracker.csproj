@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>ChestTracker</AssemblyName>
+    <RootNamespace>ChestTracker</RootNamespace>
+    <ApplicationIcon>chest.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>3.0.0</Version>
+    <Product>Chest Tracker</Product>
+    <Description>Counts the chests you open in Fortnite and shows your Pirate Token odds.</Description>
+    <Copyright>Copyright (c) 2026 0kleah. MIT License.</Copyright>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!-- single self-contained .exe: nothing to install for people who download it -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="chest.ico" />
+  </ItemGroup>
+
+  <!-- Reads chests from Fortnite's replay files (MIT, see lib/README.md). It finds its data types by
+       reflection, so the app must never be trimmed. -->
+  <PropertyGroup>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\lib\ChestCounter.Analysis\ChestCounter.Analysis.csproj" />
+  </ItemGroup>
+
+</Project>
