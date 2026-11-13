@@ -19,7 +19,7 @@ public partial class OverlayWindow : Window
 {
     readonly AppState _app;
     readonly SolidColorBrush _countBrush = new(Color.FromRgb(0xEE, 0xF1, 0xF6));
-    readonly DispatcherTimer _tick, _keepTop;
+    readonly DispatcherTimer _tick, _keepTop, _toastTimer;
     IntPtr _hwnd;
     bool _inGame;
     bool? _appliedThrough;
@@ -43,6 +43,8 @@ public partial class OverlayWindow : Window
         _tick.Tick += (_, _) => Tick();
         _keepTop = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _keepTop.Tick += (_, _) => { if (_hwnd != IntPtr.Zero) Win32.KeepTopmost(_hwnd); };
+        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+        _toastTimer.Tick += (_, _) => { _toastTimer.Stop(); ToastBox.Visibility = Visibility.Collapsed; };
 
         SourceInitialized += (_, _) =>
         {
@@ -52,7 +54,7 @@ public partial class OverlayWindow : Window
             _tick.Start();
             _keepTop.Start();
         };
-        Closed += (_, _) => { _tick.Stop(); _keepTop.Stop(); };
+        Closed += (_, _) => { _tick.Stop(); _keepTop.Stop(); _toastTimer.Stop(); };
         Tick();
     }
 
@@ -94,7 +96,8 @@ public partial class OverlayWindow : Window
         OneInText.Text = chance > 0 ? $"1 in {1 / chance:N0} for the token" : "token chance";
 
         TreasureBadge.Visibility = _app.TreasureMode ? Visibility.Visible : Visibility.Collapsed;
-        TreasureText.Text = $"TREASURE HOURS {_app.Settings.Boost:0.##}x";
+        TreasureText.Text = $"TREASURE HOURS {_app.CurrentBoost:0.##}x";
+        WarnBox.Visibility = _app.Tracker.ReplayWarning is null ? Visibility.Collapsed : Visibility.Visible;
 
         var t = _app.Tracker;
         string key = t.State switch
@@ -125,6 +128,15 @@ public partial class OverlayWindow : Window
             TrackerState.Off => "Not tracking",
             _ => last.Length > 0 ? last : "Waiting for a match",
         };
+    }
+
+    /// <summary>Shows a short line (e.g. "+9 chests · 1 sprite · 2 broken open") for 10 seconds.</summary>
+    public void ShowToast(string text)
+    {
+        ToastText.Text = text;
+        ToastBox.Visibility = Visibility.Visible;
+        _toastTimer.Stop();
+        _toastTimer.Start();
     }
 
     void Flash()

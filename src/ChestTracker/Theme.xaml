@@ -174,7 +174,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
-                    <Grid Height="60" Margin="10,3" Background="Transparent">
+                    <Grid Height="56" Margin="10,2" Background="Transparent">
                         <Border x:Name="bg" CornerRadius="12" Background="Transparent"/>
                         <Border x:Name="bar" Width="3" Height="22" CornerRadius="2" Background="{StaticResource Gold}"
                                 HorizontalAlignment="Left" Opacity="0"/>

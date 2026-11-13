@@ -18,8 +18,12 @@ namespace ChestCounter;
 public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
 {
     /// <summary>Stale = state received with the channel itself (searched before it became relevant to the recorder).</summary>
-    private sealed record SearchEvent(float Time, string ActorKey, string Label, uint? SearcherPawn, bool Destroyed = false, bool Stale = false);
-    private sealed record TossEvent(float Time, string Item);
+    private sealed record SearchEvent(float Time, string ActorKey, string Label, uint? SearcherPawn, bool Destroyed = false, bool Stale = false)
+    {
+        /// <summary>Spawn location of the container, when the replay sent one (chests spawned during the match).</summary>
+        public (float X, float Y)? Where { get; init; }
+    }
+    private sealed record TossEvent(float Time, string Item, float? X = null, float? Y = null);
     private sealed record EquipEvent(float Time, string Item, uint Pawn);
     private sealed record PrizeEvent(float Time, string PrizeId, uint? Pawn, string Container);
 
@@ -81,6 +85,7 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
 
     private readonly Dictionary<uint, string> _channelKey = new();
     private readonly Dictionary<uint, string> _channelLabel = new();
+    private readonly Dictionary<uint, (float X, float Y)> _channelWhere = new();
     private readonly Dictionary<uint, uint> _lastSearcher = new();
     private readonly HashSet<string> _searched = new();
     private readonly List<SearchEvent> _searches = new();
@@ -381,12 +386,17 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
             _channelKey[channelIndex] = $"guid:{channel?.ActorId}";
         }
         _channelLabel[channelIndex] = label;
+        if (channel?.Actor?.Location is { } at) _channelWhere[channelIndex] = ((float)at.X, (float)at.Y);
+        else _channelWhere.Remove(channelIndex);
         _channelOpenAt[channelIndex] = Now;
         _channelSearched.Remove(channelIndex);
         _lastSearcher.Remove(channelIndex);
         _equipChannelsSeen.Remove(channelIndex);
         _prizeChannelsSeen.Remove(channelIndex);
     }
+
+    private (float X, float Y)? WhereOf(uint channelIndex) =>
+        _channelWhere.TryGetValue(channelIndex, out var w) ? w : null;
 
     /// <summary>Extracts "DelilahPrize:dpid_item4" from the raw property bits (FString inside a struct).</summary>
     private static string? ReadPrizeId(DebuggingObject? raw)
@@ -441,7 +451,7 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
                     {
                         _searched.Add(containerKey);
                         _lastOpener[containerKey] = openedBy;
-                        _searches.Add(new SearchEvent(Now, containerKey, containerLabel, openedBy, Stale: stale));
+                        _searches.Add(new SearchEvent(Now, containerKey, containerLabel, openedBy, Stale: stale) { Where = WhereOf(channelIndex) });
                     }
                     else if (Debug == "1")
                     {
@@ -456,7 +466,7 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
                     // more if it was refilled since its last opening.
                     _channelSearched[channelIndex] = true;
                     _lastOpener[containerKey] = destroyer;
-                    _searches.Add(new SearchEvent(Now, containerKey, containerLabel, destroyer, Destroyed: true, Stale: stale));
+                    _searches.Add(new SearchEvent(Now, containerKey, containerLabel, destroyer, Destroyed: true, Stale: stale) { Where = WhereOf(channelIndex) });
                 }
                 break;
 
@@ -501,7 +511,9 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
                 }
                 if (!string.IsNullOrEmpty(item))
                 {
-                    _tosses.Add(new TossEvent(Now, item));
+                    // Loot spawns at the container: its spawn location is where the chest was.
+                    var spawn = Channels[channelIndex]?.Actor?.Location;
+                    _tosses.Add(new TossEvent(Now, item, (float?)spawn?.X, (float?)spawn?.Y));
                 }
                 break;
 
@@ -594,7 +606,7 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
         var interactions = _searches
             .Where(s => s.SearcherPawn is uint p && targetPawns.Contains(p) && (!s.Stale || StableKey(s.ActorKey)))
             .OrderBy(s => s.Time)
-            .Select(s => (s.Time, Kind: ChestKinds.Classify(s.Label), s.Label, s.ActorKey, s.Destroyed))
+            .Select(s => (s.Time, Kind: ChestKinds.Classify(s.Label), s.Label, s.ActorKey, s.Destroyed, s.Where))
             .ToList();
 
         var chests = new List<ChestRecord>();
@@ -607,10 +619,11 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
                 continue;
             }
 
-            var items = _tosses
+            var tossed = _tosses
                 .Where(t => t.Time >= search.Time - 0.25f && t.Time <= search.Time + 0.6f)
-                .Select(t => t.Item)
                 .ToList();
+            var items = tossed.Select(t => t.Item).ToList();
+            var where = tossed.FirstOrDefault(t => t.X != null && t.Y != null);
 
             chests.Add(new ChestRecord
             {
@@ -618,6 +631,8 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
                 Kind = search.Kind,
                 Blueprint = search.Label,
                 Destroyed = search.Destroyed,
+                X = search.Where?.X ?? where?.X,
+                Y = search.Where?.Y ?? where?.Y,
                 Items = items,
                 TreasureItems = items.Where(i => TreasureItem.IsMatch(i) && !EventItem.IsMatch(i)).ToList(),
             });

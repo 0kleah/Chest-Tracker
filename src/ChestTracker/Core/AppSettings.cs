@@ -11,6 +11,12 @@ public sealed class AppSettings
     // Odds / feedback
     public double Boost { get; set; } = Odds.DefaultBoost;
     public bool Beep { get; set; } = true;
+    /// <summary>Switch Treasure Hours on by itself at the times Epic announced (F9 still works).</summary>
+    public bool AutoTreasure { get; set; } = true;
+    /// <summary>Look for a newer Chest Tracker on GitHub (only reads the release name).</summary>
+    public bool CheckUpdates { get; set; } = true;
+    /// <summary>Show a short summary on the overlay when a match is counted.</summary>
+    public bool MatchSummary { get; set; } = true;
 
     // Overlay
     public bool OverlayEnabled { get; set; } = true;

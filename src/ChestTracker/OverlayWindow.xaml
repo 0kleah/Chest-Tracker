@@ -46,6 +46,13 @@
                 </Grid>
 
                 <TextBlock x:Name="StatusLine" FontSize="11" Foreground="{StaticResource TextDim}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                <Border x:Name="WarnBox" Visibility="Collapsed" CornerRadius="8" Padding="8,5" Margin="0,6,0,0" Background="#33FF9A3C">
+                    <TextBlock Text="Replays are off: this match can't be counted. Fortnite → Settings → Game → Replays." FontSize="10.5"
+                               Foreground="#FFD2A8" TextWrapping="Wrap"/>
+                </Border>
+                <Border x:Name="ToastBox" Visibility="Collapsed" CornerRadius="8" Padding="8,5" Margin="0,6,0,0" Background="#33FFCD50">
+                    <TextBlock x:Name="ToastText" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Gold}" TextWrapping="Wrap"/>
+                </Border>
                 <TextBlock x:Name="HintText" FontSize="10.5" Foreground="{StaticResource TextFaint}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
             </StackPanel>
         </Border>

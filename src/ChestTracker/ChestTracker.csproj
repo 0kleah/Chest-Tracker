@@ -11,11 +11,14 @@
     <RootNamespace>ChestTracker</RootNamespace>
     <ApplicationIcon>chest.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>3.0.0</Version>
+    <Version>3.1.0</Version>
     <Product>Chest Tracker</Product>
     <Description>Counts the chests you open in Fortnite and shows your Pirate Token odds.</Description>
     <Copyright>Copyright (c) 2026 0kleah. MIT License.</Copyright>
     <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- low memory: no background GC thread, and the GC gives memory back to Windows more eagerly -->
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
   </PropertyGroup>
 
   <!-- single self-contained .exe: nothing to install for people who download it -->
@@ -33,11 +36,56 @@
     <Resource Include="chest.ico" />
   </ItemGroup>
 
-  <!-- Reads chests from Fortnite's replay files (MIT, see lib/README.md). It finds its data types by
-       reflection, so the app must never be trimmed. -->
-  <PropertyGroup>
-    <PublishTrimmed>false</PublishTrimmed>
+  <!-- Smaller download: unused parts of .NET are left out ("trimming"). WPF (its XAML loads types by name, from every
+       assembly of its namespace) and the replay reader (finds its types by reflection) are kept whole; only the parts
+       of .NET that nothing can reach are removed. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+    <_SuppressWpfTrimError>true</_SuppressWpfTrimError>
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <UseSystemResourceKeys>false</UseSystemResourceKeys>
+    <EventSourceSupport>false</EventSourceSupport>
+    <DebuggerSupport>false</DebuggerSupport>
   </PropertyGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Release'">
+    <TrimmerRootAssembly Include="ChestTracker" />
+    <TrimmerRootAssembly Include="ChestCounter.Analysis" />
+    <TrimmerRootAssembly Include="FortniteReplayReader" />
+    <TrimmerRootAssembly Include="Unreal.Core" />
+    <TrimmerRootAssembly Include="Unreal.Encryption" />
+    <TrimmerRootAssembly Include="OozSharp" />
+    <TrimmerRootAssembly Include="PresentationFramework" />
+    <TrimmerRootAssembly Include="PresentationCore" />
+    <TrimmerRootAssembly Include="WindowsBase" />
+    <TrimmerRootAssembly Include="System.Xaml" />
+    <TrimmerRootAssembly Include="PresentationFramework.Aero2" />
+    <TrimmerRootAssembly Include="PresentationFramework.Aero" />
+    <TrimmerRootAssembly Include="PresentationFramework.Classic" />
+    <TrimmerRootAssembly Include="PresentationFramework.Luna" />
+    <TrimmerRootAssembly Include="PresentationFramework.Royale" />
+    <TrimmerRootAssembly Include="PresentationFramework.AeroLite" />
+    <TrimmerRootAssembly Include="PresentationFramework.Fluent" />
+    <TrimmerRootAssembly Include="PresentationFramework-SystemCore" />
+    <TrimmerRootAssembly Include="PresentationFramework-SystemData" />
+    <TrimmerRootAssembly Include="PresentationFramework-SystemDrawing" />
+    <TrimmerRootAssembly Include="PresentationFramework-SystemXml" />
+    <TrimmerRootAssembly Include="PresentationFramework-SystemXmlLinq" />
+    <TrimmerRootAssembly Include="PresentationUI" />
+    <TrimmerRootAssembly Include="ReachFramework" />
+    <TrimmerRootAssembly Include="System.Printing" />
+    <TrimmerRootAssembly Include="System.Windows.Controls.Ribbon" />
+    <TrimmerRootAssembly Include="System.Windows.Input.Manipulations" />
+    <TrimmerRootAssembly Include="System.Windows.Presentation" />
+    <TrimmerRootAssembly Include="UIAutomationClient" />
+    <TrimmerRootAssembly Include="UIAutomationClientSideProviders" />
+    <TrimmerRootAssembly Include="UIAutomationProvider" />
+    <TrimmerRootAssembly Include="UIAutomationTypes" />
+    <TrimmerRootAssembly Include="Accessibility" />
+    <TrimmerRootAssembly Include="DirectWriteForwarder" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\lib\ChestCounter.Analysis\ChestCounter.Analysis.csproj" />
   </ItemGroup>

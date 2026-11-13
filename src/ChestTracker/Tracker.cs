@@ -30,7 +30,9 @@ public sealed class Tracker
     readonly AppState _app;
     readonly DateTime _startedUtc = DateTime.UtcNow;
     readonly Dictionary<string, int> _failures = new(StringComparer.OrdinalIgnoreCase);
+    readonly FortniteLog _log = new();
     CancellationTokenSource? _cts;
+    bool _positionsFilled;
 
     public bool Running { get; private set; }
     public TrackerState State { get; private set; } = TrackerState.Off;
@@ -40,6 +42,12 @@ public sealed class Tracker
     public event Action? StatusChanged;
     /// <summary>A match was read and its chests added (count added).</summary>
     public event Action<ReplayResult, int>? MatchCounted;
+
+    /// <summary>
+    /// Set when you joined a Battle Royale match and Fortnite didn't start recording a replay (Fortnite's log says
+    /// so), which means replays are switched off and the match can't be counted.
+    /// </summary>
+    public string? ReplayWarning { get; private set; }
 
     public Tracker(AppState app) => _app = app;
 
@@ -121,6 +129,7 @@ public sealed class Tracker
 
     void Scan()
     {
+        CheckFortniteLog();
         var folder = ReplayChests.DemosFolder;
         if (!Directory.Exists(folder)) { SetState(TrackerState.NoReplays); return; }
         var ledger = _app.Ledger;
@@ -166,7 +175,7 @@ public sealed class Tracker
             if (!info.Complete)
             {
                 // still being recorded (or Fortnite closed mid-match and never finished it)
-                if (DateTime.UtcNow - f.LastWriteTimeUtc < TimeSpan.FromMinutes(2)) inMatch = true;
+                if (DateTime.UtcNow - f.LastWriteTimeUtc < TimeSpan.FromMinutes(2)) { inMatch = true; ReplaySeen(); }
                 else if (DateTime.UtcNow - f.LastWriteTimeUtc > TimeSpan.FromHours(1))
                 {
                     ledger.Set(new ReplayLedger.Entry { File = f.Name, Note = "match never finished (Fortnite closed?)", When = DateTime.Now });
@@ -180,6 +189,65 @@ public sealed class Tracker
             ReadAndCount(f, info);
         }
         SetState(inMatch ? TrackerState.InMatch : TrackerState.Waiting);
+
+        if (!_positionsFilled)
+        {
+            _positionsFilled = true;
+            FillPositions();
+        }
+    }
+
+    // ------------------------------------------------------------------ replays switched off?
+
+    void CheckFortniteLog()
+    {
+        _log.Poll(DateTime.UtcNow);
+        string? warning = _log.LastMatchNotRecorded
+            ? "Fortnite isn't saving a replay of your match, so its chests can't be counted. In Fortnite: Settings → Game → Replays → Record Battle Royale Replays: On."
+            : null;
+        if (warning != ReplayWarning)
+        {
+            ReplayWarning = warning;
+            StatusChanged?.Invoke();
+        }
+    }
+
+    void ReplaySeen()
+    {
+        _log.ReplaySeen();
+        if (ReplayWarning is not null) { ReplayWarning = null; StatusChanged?.Invoke(); }
+    }
+
+    // ------------------------------------------------------------------ chest positions for the map
+
+    /// <summary>
+    /// Chests counted before positions were saved (or by an older version) get them from their replay, if Fortnite
+    /// still has it. Done once per run, one replay at a time, in the background.
+    /// </summary>
+    void FillPositions()
+    {
+        var missing = _app.Store.MatchesWithoutPositions();
+        if (missing.Count == 0) return;
+        bool any = false;
+        foreach (var e in _app.Ledger.All())
+        {
+            if (e.SessionId is not string id || !missing.Contains(id) || e.PositionsTried) continue;
+            var path = Path.Combine(ReplayChests.DemosFolder, e.File);
+            if (File.Exists(path))
+            {
+                try
+                {
+                    var r = ReplayChests.Analyze(path);
+                    var positions = r.Record.Chests.OrderBy(c => c.TimeSeconds).Select(c => (c.X, c.Y)).ToList();
+                    if (_app.Store.SetPositions(id, positions) > 0) any = true;
+                }
+                catch (Exception) { }
+            }
+            e.PositionsTried = true;
+        }
+        _app.Ledger.Save();
+        Memory.Trim();
+        if (any) _app.NotifyCountsChanged();
     }
 
     void ReadAndCount(FileInfo f, ReplayFileInfo info, bool treasureKnown = true)
@@ -216,10 +284,13 @@ public sealed class Tracker
             added = _app.AddReplayMatch(r, info.StartedUtc ?? f.CreationTimeUtc, treasureKnown);
             entry.ChestsCounted = added;
         }
+        entry.PositionsTried = true;
         ledger.Set(entry);
         ledger.Save();
         Error = null;
         LastMatch = r;
+        ReplaySeen();
+        Memory.Trim();   // reading a replay uses a lot of memory for a moment; give it back
         MatchCounted?.Invoke(r, added);
         StatusChanged?.Invoke();
     }

@@ -25,3 +25,12 @@ publish/
 # debug output from the replay reader (Debug builds only)
 cmds/
 failed-properties*
+
+# downloaded/cached by the app at runtime
+treasure_info.json
+map.png
+map.png.tmp
+map_places.json
+
+# backups the app or an update makes of your data
+*.before-*.json

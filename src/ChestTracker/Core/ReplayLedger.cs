@@ -24,6 +24,9 @@ public sealed class ReplayLedger
         /// <summary>Why nothing was counted ("not Battle Royale", "couldn't read"...), if so.</summary>
         public string? Note { get; set; }
         public DateTime When { get; set; }
+        /// <summary>Chest positions (for the map) were saved, or looked for, from this replay.</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+        public bool PositionsTried { get; set; }
     }
 
     public bool Initialized { get; set; }

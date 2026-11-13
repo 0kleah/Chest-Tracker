@@ -2,7 +2,15 @@
 
 > **Disclaimer:** This project was coded with **Claude Opus 5.5**, Anthropic's AI model.
 
-Counts the chests you open in Fortnite and shows your odds of finding the **Pirate Shop Access token**, with an overlay that sits on top of the game.
+Counts the chests you open in Fortnite and shows your odds of finding the **Pirate Shop Access token**, with an overlay that sits on top of the game. It also shows your stats, a map of every chest you've opened, your best landing spots, and the Treasure Hunters info (Treasure Hours, prize odds, weekly prizes, server status) right in the app.
+
+## In simple terms
+
+1. Fortnite already saves a **replay** of every match on your PC. It's like a recording of everything that happened.
+2. When your match ends, Chest Tracker opens that replay and looks for the chests **you** opened or broke open.
+3. It adds them to your count and works out your chance of getting the Pirate Shop Access token.
+
+That's it. It doesn't watch your screen, it doesn't touch the game while you play, and it doesn't send anything about you anywhere. It's a single .exe: download it, double-click it, done.
 
 ## ℹ️ Good to know
 
@@ -13,7 +21,11 @@ Counts the chests you open in Fortnite and shows your odds of finding the **Pira
 - **Leaving early:** if you close Fortnite mid-match, that match can't be read. Leaving after you're eliminated is fine.
 - **Safe:** no screen capture, no game memory, no network snooping, no injection. Nothing is uploaded anywhere.
 - **Been counting already?** Type your previous count into the box on the Home page (see [below](#been-counting-already)).
-- **Your data** stays in the same folder as the .exe: `chest_counts.json` (your count) and `replays_counted.json` (which matches were counted). Keep them with the .exe when you update.
+- **Replays switched off?** The app notices when a Battle Royale match starts without a replay being recorded (Fortnite's own log file says so) and warns you on the overlay and in the app, so you don't lose a whole session.
+- **The token is never guaranteed.** Epic's rate is per chest: every chest is its own 1 in 137,500 roll. More chests raise your chance but can never make it 100%. Some players have opened over 100,000 chests without getting it (at 100,000 chests, about half of players still wouldn't have it). See [The odds](#the-odds).
+- **Treasure Hours switch on by themselves** at the times Epic announced, with that hour's real boost (for example 2x on 8 Nov). You can still switch them on or off by hand with F9.
+- **Your data** stays in the same folder as the .exe: `chest_counts.json` (your count) and `replays_counted.json` (which matches were counted). Keep them with the .exe when you update. The app tells you when a new version is out.
+- **Small and light:** about 25 MB to download, and about 15 to 40 MB of memory while it runs (most of the time it's in the background).
 - **After a Fortnite update**, the replay format can change. If a match can't be read, the app tells you. Please open an issue so it can be fixed.
 
 ## How it counts (exactly)
@@ -47,8 +59,13 @@ Download **ChestTracker.exe** from the **[latest release](https://github.com/0kl
 If you close Fortnite in the middle of a match, that match can't be read, because Fortnite never finishes its replay.
 
 **Home** shows your total, today's chests, your token chance, progress toward a 50% chance, and your recent chests (type, opened or broken open). It's also where you add a previous count.
+**Stats** shows matches counted, chests per match, your best match, this week, a 14-day chart, and your chest types.
+**Map** shows every chest you've opened this season on the island, and your **best landing spots**: where your first chest of each match was, and how many chests those matches gave you on average.
+**Treasure** has the Treasure Hunters info: a countdown to the next Treasure Hour, every Treasure Hour in your time zone with its boosts, the odds of every prize with **your** chance of each, the weekly prizes, and Fortnite's server status.
 **Odds** is a calculator: chests needed for 10% to 99%, and how many matches that is.
-**Settings** shows your recent matches and what was counted in each, lets you add chests from **older replays** (Fortnite keeps about 100), and covers the overlay and your data.
+**Settings** shows your recent matches and what was counted in each, lets you add chests from **older replays** (Fortnite keeps about 100), and covers automatic Treasure Hours, update checks, the overlay and your data.
+
+After each match the overlay shows a short summary for a few seconds, for example **+9 chests · 1 sprite · 2 broken open**.
 
 ### Been counting already?
 
@@ -69,7 +86,7 @@ You can also add chests from matches Fortnite still has replays of (it keeps abo
 | F6  | Overlay: move mode / locked |
 | F7  | Add a chest by hand (for example from a mode without replays) |
 | F8  | Undo the last entry |
-| F9  | Treasure Hours on/off. Chests opened while it's on use the 1.5x boosted odds, matched by each chest's own time in the replay. |
+| F9  | Treasure Hours on/off by hand. It also switches on by itself during announced Treasure Hours; F9 can switch that off too. Each chest gets the boost by its own time in the replay. |
 
 A replay is the exact record of its match, so if you press F7 during a Battle Royale match, that hand-added chest is replaced by the replay's count when the match ends. Nothing is counted twice.
 
@@ -81,7 +98,7 @@ A replay is the exact record of its match, so if you press F7 during a Battle Ro
 
 ## The odds
 
-Epic's official rate is **1 in 137,500 per chest**, boosted **1.5x** during Saturday Treasure Hours. Every chest is an independent roll:
+Epic's official rate is **1 in 137,500 per chest**, boosted during Treasure Hours (usually **1.5x**, once **2x**). Every chest is an independent roll:
 
 | Chance of getting it | Chests needed |
 |---|---|
@@ -90,9 +107,19 @@ Epic's official rate is **1 in 137,500 per chest**, boosted **1.5x** during Satu
 | 90% | ~316,600 |
 | 99% | ~633,200 |
 
+> ⚠️ **No number of chests guarantees the token.** The rate is per chest, not "one token every 137,500 chests". Each chest has the same tiny chance however many you've opened before, so it's luck, not a countdown. Some players have opened more than 100,000 chests without getting it: at 100,000 chests about 52% of players would have found it and about 48% wouldn't. The numbers in the app are chances, never promises.
+
+How the app works it out: your chance is `1 - (1 - p)^n`, worked out for each group of chests with its own boost (normal, 1.5x, 2x). Only chests opened since the Treasure Hunters event started count for the token, plus any previous count you add. Weekly prizes (gold outfit, vehicle and decal, and so on) change every week, so only that week's chests count for them.
+
+### Treasure Hunters info
+
+The Treasure page uses the Treasure Hours, prize odds and weekly prizes listed on [fortnite.bot](https://fortnite.bot/treasure), which shows Epic's numbers. That info is built into the app and kept up to date through [`treasure.json`](treasure.json) in this repo, so new Treasure Hours and newly revealed prizes show up without a new download. (The app reads that file from GitHub; it doesn't load fortnite.bot itself.)
+
 ## Is it safe for my account?
 
-Yes. It reads the replay files Fortnite saves in `%LOCALAPPDATA%\FortniteGame\Saved\Demos`, after each match is over, and checks the F6 to F9 hotkeys. It never reads or changes the game's memory or network traffic, never injects anything, never captures the screen, and never sends data anywhere.
+Yes. It reads the replay files Fortnite saves in `%LOCALAPPDATA%\FortniteGame\Saved\Demos` after each match is over, reads new lines of Fortnite's log file (to notice replays being switched off), and checks the F6 to F9 hotkeys. It never reads or changes the game's memory or network traffic, never injects anything, never captures the screen, and never sends data about you anywhere.
+
+It only goes online to read public pages, anonymously: this repo's latest release (update check) and `treasure.json`, Epic's public status page (server status), and [fortnite-api.com](https://fortnite-api.com)'s map picture and place names (chest map). You can turn the update check off in Settings.
 
 ### Why replays?
 
@@ -118,7 +145,7 @@ Run the tests (odds, saved counts, no double counting, plus exact chest counts o
 dotnet run --project tests/ChestTracker.Tests -- path/to/folder-with-replays
 ```
 
-Build the single .exe:
+Build the single .exe (about 25 MB: parts of .NET the app never uses are left out, while WPF and the replay reader are kept whole):
 
 ```bash
 dotnet publish src/ChestTracker -c Release -o publish
@@ -126,9 +153,10 @@ dotnet publish src/ChestTracker -c Release -o publish
 
 ### Project layout
 
-- `src/ChestTracker/Core/`: odds, saved counts, replay results → chests, the record of which replays were counted, settings
+- `src/ChestTracker/Core/`: odds, saved counts, replay results → chests, the record of which replays were counted, stats, Treasure Hunters info, the log check, online look-ups, settings
 - `src/ChestTracker/Tracker.cs`: watches the replay folder and counts each finished match; hotkeys
-- `src/ChestTracker/MainWindow.xaml`, `OverlayWindow.xaml`, `Theme.xaml`: the UI (WPF)
+- `src/ChestTracker/MainWindow.xaml` (+ `MainWindow.Pages.cs` for Stats, Map and Treasure), `OverlayWindow.xaml`, `Theme.xaml`: the UI (WPF)
+- `treasure.json`: Treasure Hours, prize odds and weekly prizes, read by the app (edit this when Epic announces new ones)
 - `lib/`: the replay reader (third-party, MIT, see below)
 - `tests/ChestTracker.Tests/`: test runner
 
@@ -140,6 +168,8 @@ Replay reading uses open-source code, included in `lib/` under the MIT licence:
 - the patches and chest analysis from [Fortnite-ChestCounter](https://github.com/LED-N/Fortnite-ChestCounter) by LED-N
 
 See `lib/README.md` for details.
+
+Treasure Hours, prize odds and weekly prizes are taken from [fortnite.bot](https://fortnite.bot/treasure) (by HYPEX), which lists Epic's numbers. The map picture and place names come from [fortnite-api.com](https://fortnite-api.com). Server status comes from [Epic's public status page](https://status.epicgames.com).
 
 Not affiliated with or endorsed by Epic Games. Fortnite is a trademark of Epic Games, Inc.
 

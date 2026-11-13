@@ -2,6 +2,13 @@ using System.Diagnostics;
 using System.Text.Json;
 using ChestTracker.Core;
 
+// `--treasure-json <file>`: write the built-in Treasure Hunters info (the repo's treasure.json starts from this).
+if (args.Length >= 2 && args[0] == "--treasure-json")
+{
+    File.WriteAllText(args[1], TreasureInfo.BuiltIn().ToJson() + Environment.NewLine);
+    return 0;
+}
+
 // `--replays <folder>`: read every replay in a folder and print what each counts (read-only).
 if (args.Length >= 2 && args[0] == "--replays")
 {
@@ -14,6 +21,9 @@ if (args.Length >= 2 && args[0] == "--replays")
             if (info is not { Complete: true }) { Console.WriteLine($"{Path.GetFileName(f)}: not finished"); continue; }
             var r = ReplayChests.Analyze(f);
             Console.WriteLine($"{Path.GetFileName(f)} {sw.Elapsed.TotalSeconds:0.0}s: {(r.Counts ? $"{r.Record.Chests.Count} chests ({r.Opened} opened, {r.Broken} broken), {r.Record.AmmoBoxesOpened} ammo" : "not counted: " + r.WhyNot)}");
+            if (args.Length >= 3 && args[2] == "--where")
+                foreach (var ch in r.Record.Chests)
+                    Console.WriteLine($"    {ch.TimeSeconds,7:0.0}s {(ch.Destroyed ? "broken" : "opened")} {ch.Blueprint} at {(ch.X is null ? "?" : $"{ch.X:0},{ch.Y:0}")}");
         }
         catch (Exception e) { Console.WriteLine($"{Path.GetFileName(f)}: FAILED {e.Message}"); }
     }
@@ -91,6 +101,98 @@ Check("ledger: counted match remembered by session (even if the file is renamed)
 Check("ledger: an old, not-imported match isn't 'counted'", !ledger2.SessionCounted("S2"));
 File.Delete(lp);
 
+
+// ------------------------------------------------------------------ v3.1: odds are never a guarantee
+Check("odds: 100,000 chests is about a 51.7% chance", Math.Abs(Odds.ChanceAtLeastOne(100_000, 0, 1) - 0.5168) < 0.001,
+      Odds.Percent(Odds.ChanceAtLeastOne(100_000, 0, 1)));
+Check("odds: even 2,000,000 chests never shows 100%", Odds.Percent(Odds.ChanceAtLeastOne(2_000_000, 0, 1)) != "100%",
+      Odds.Percent(Odds.ChanceAtLeastOne(2_000_000, 0, 1)));
+Check("odds: groups with different boosts add up", Math.Abs(Odds.ChanceAtLeastOne(new[] { (1000L, 1.0), (1000L, 2.0) }, 137_500)
+      - Odds.ChanceAtLeastOne(3000, 0, 1)) < 1e-6);
+Check("odds: expected tokens", Math.Abs(Odds.Expected(new[] { (137_500L, 1.0) }, 137_500) - 1) < 1e-9);
+
+// ------------------------------------------------------------------ v3.1: Treasure Hours (from fortnite.bot)
+var ti = TreasureInfo.BuiltIn();
+Check("treasure: Sat 14 Nov 7:30 PM UTC is a 1.5x Treasure Hour", ti.HourAt(new DateTime(2026, 11, 14, 19, 30, 0, DateTimeKind.Utc))?.Pirate == 1.5);
+Check("treasure: the 8 Nov 2-4 AM UTC hour was 2x", ti.HourAt(new DateTime(2026, 11, 8, 3, 0, 0, DateTimeKind.Utc))?.Pirate == 2);
+Check("treasure: 9 PM UTC (just after) is not a Treasure Hour", ti.HourAt(new DateTime(2026, 11, 14, 21, 0, 0, DateTimeKind.Utc)) is null);
+Check("treasure: next hour after 13 Nov is 14 Nov 7 PM UTC", ti.NextHour(new DateTime(2026, 11, 13, 16, 0, 0, DateTimeKind.Utc))?.StartUtc == new DateTime(2026, 11, 14, 19, 0, 0, DateTimeKind.Utc));
+Check("treasure: week 2 runs until 15 Nov", ti.WeekAt(new DateTime(2026, 11, 13, 16, 0, 0, DateTimeKind.Utc))?.Number == 2);
+Check("treasure: json round trip", TreasureInfo.Parse(ti.ToJson()) is { Version: 1, Hours.Count: 8, Prizes.Count: 7 });
+Check("treasure: broken json is ignored", TreasureInfo.Parse("{nope") is null && TreasureInfo.Parse("{}") is null);
+
+string tp = Path.Combine(Path.GetTempPath(), $"ct_test_th_{Guid.NewGuid():N}.json");
+var ths = new CountStore(tp);
+var inHour = new DateTime(2026, 11, 8, 3, 10, 0, DateTimeKind.Utc).ToLocalTime();
+ths.AddEntries(new[]
+{
+    new ChestLogEntry { Time = CountStore.Stamp(inHour), Source = "replay" },
+    new ChestLogEntry { Time = CountStore.Stamp(inHour.AddHours(3)), Source = "replay" },
+});
+ths.Add(false, "bulk", 50);
+int flipped = ths.ApplyTreasureHours(t => ti.HourAt(t.ToUniversalTime())?.Pirate);
+Check("treasure: a chest opened in a Treasure Hour gets that hour's boost", flipped == 1 && ths.Treasure == 1 && ths.Normal == 51
+      && ths.Snapshot()[0].Boost == 2, $"flipped {flipped}, normal {ths.Normal}, treasure {ths.Treasure}");
+Check("treasure: applying again changes nothing", ths.ApplyTreasureHours(t => ti.HourAt(t.ToUniversalTime())?.Pirate) == 0);
+File.Delete(tp);
+
+// ------------------------------------------------------------------ v3.1: replays switched off (Fortnite's log)
+var lt0 = new DateTime(2026, 11, 13, 20, 0, 0, DateTimeKind.Utc);
+var flog = new FortniteLog(Path.Combine(Path.GetTempPath(), "no-such-log.log"));
+flog.Feed("[2026.11.13-20.00.00:000][1]LogNet: Welcomed by server (Level: /Delilah/Maps/Delilah_Terrain?VerseURI=/Fortnite.com/GameFeatures/BRRoot, Game: /Game/Athena/Athena_GameMode.Athena_GameMode_C)\n", lt0);
+flog.Check(lt0.AddSeconds(60));
+Check("replays off: no warning in the first 90 s of a match", !flog.LastMatchNotRecorded);
+flog.Check(lt0.AddSeconds(95));
+Check("replays off: warning when a BR match doesn't start recording", flog.LastMatchNotRecorded);
+flog.Feed("[x]LogDemo: UReplaySubsystem::RecordReplay: Starting recording with demo driver.\n", lt0.AddSeconds(100));
+Check("replays off: warning goes once it records", !flog.LastMatchNotRecorded);
+var flog2 = new FortniteLog(Path.Combine(Path.GetTempPath(), "no-such-log.log"));
+flog2.Feed("[x]LogNet: Welcomed by server (Level: /Game/Creative/Maps/Creative, Game: /Game/Creative.Creative_C)\n", lt0);
+flog2.Check(lt0.AddMinutes(5));
+Check("replays off: Creative never warns", !flog2.LastMatchNotRecorded);
+var flog3 = new FortniteLog(Path.Combine(Path.GetTempPath(), "no-such-log.log"));
+flog3.Feed("[x]LogNet: Welcomed by server (Level: /Delilah/Maps/Delilah_Terrain?VerseURI=/Fortnite.com/Game", lt0);
+flog3.Feed("Features/BRRoot, Game: x)\n[x]LogDemo: UReplaySubsystem::RecordReplay: Starting recording\n", lt0);
+flog3.Check(lt0.AddMinutes(5));
+Check("replays off: a line split across two reads still works", !flog3.LastMatchNotRecorded && flog3.Recording);
+
+// ------------------------------------------------------------------ v3.1: stats and landing spots
+var now0 = new DateTime(2026, 11, 13, 21, 0, 0);
+var slog = new List<ChestLogEntry>();
+void AddMatch(string id, DateTime start, int n, float x, float y)
+{
+    for (int i = 0; i < n; i++)
+        slog.Add(new ChestLogEntry { Time = CountStore.Stamp(start.AddSeconds(30 * i)), Source = "replay", Match = id,
+                                     Kind = i == 0 ? "Sprite chest" : "Normal chest", Broken = i == 1, X = x + i, Y = y });
+}
+AddMatch("A", now0.AddHours(-2), 9, -51000, 16000);   // Arlong Park
+AddMatch("B", now0.AddHours(-1), 5, 26000, 89000);    // Plunder Port
+AddMatch("C", now0.AddDays(-1), 11, -51500, 16500);   // Arlong Park
+slog.Add(new ChestLogEntry { Time = CountStore.Stamp(now0), Source = "bulk", Count = 100 });
+var st = ChestStats.From(slog, now0);
+Check("stats: 3 matches, best 11, average 8.3", st.Matches.Count == 3 && st.Best?.Chests == 11 && Math.Abs(st.PerMatch - 25 / 3.0) < 1e-9);
+Check("stats: total includes the previous count, today doesn't", st.Total == 125 && st.Today == 14, $"total {st.Total} today {st.Today}");
+Check("stats: opened / broken / sprite", st.Opened == 22 && st.Broken == 3 && st.ByKind.First(k => k.Kind == "Sprite chest").Count == 3);
+var pois = Online.ParsePois("{\"data\":{\"pois\":[{\"name\":\"Arlong Park\",\"location\":{\"x\":-51707,\"y\":16134,\"z\":0}},{\"name\":\"Plunder Port\",\"location\":{\"x\":26307,\"y\":89235,\"z\":0}}]}}");
+var spots = ChestStats.LandingSpots(st.Matches, pois);
+Check("map: place names read", pois.Count == 2);
+Check("map: best landing spot is Arlong Park (10 a match)", spots.Count == 2 && spots[0].Name == "Arlong Park" && spots[0].Matches == 2 && spots[0].AvgChests == 10);
+
+// ------------------------------------------------------------------ v3.1: update check and server status
+Check("update: version read from the release name", Online.VersionIn("Chest Tracker 3.1") == new Version(3, 1, 0));
+Check("update: 3.1 is newer than 3.0.0.0", Online.IsNewer(new Version(3, 1, 0), new Version(3, 0, 0, 0)));
+Check("update: 3.1 is not newer than 3.1.0.0", !Online.IsNewer(new Version(3, 1, 0), new Version(3, 1, 0, 0)));
+var stat = Online.ParseStatus("""
+{"components":[{"id":"g","name":"Fortnite","status":"operational","group":true},
+ {"id":"a","name":"Login","status":"operational","group_id":"g","position":1},
+ {"id":"b","name":"Matchmaking","status":"partial_outage","group_id":"g","position":2},
+ {"id":"z","name":"Rocket League","status":"major_outage","group_id":"x"}],
+ "incidents":[{"name":"Fortnite matchmaking issues","status":"investigating","components":[{"group_id":"g"}]}],
+ "scheduled_maintenances":[]}
+""", DateTime.UtcNow);
+Check("status: Fortnite parts only, in plain words", stat is { Overall: "Working", Parts.Count: 2 } && stat.Parts[1].Status == "Partly down" && stat.Notices.Count == 1,
+      stat is null ? "null" : $"{stat.Overall} {stat.Parts.Count} {stat.Notices.Count}");
+
 // ------------------------------------------------------------------ real replays
 // Pass the fixtures folder. Expected numbers were checked against what happened in those matches:
 // the 20:12 match was watched live (8 "+600 XP CHEST" / "SPRITE CHEST" pop-ups, 1 ammo box, and one
@@ -122,6 +224,9 @@ if (args.Length > 0 && Directory.Exists(args[0]))
         var start = r.Record.MatchStartUtc!.Value.ToLocalTime();
         var withTh = ReplayChests.Entries(r, t => t >= start.AddSeconds(150), DateTime.UtcNow);
         Check($"{file}: Treasure Hours applied by each chest's own time", withTh.Any(e => e.Treasure) && withTh.Any(e => !e.Treasure));
+        Check($"{file}: every chest has its position on the map", entries.All(e => e.X is not null && e.Y is not null));
+        var boosted = ReplayChests.Entries(r, t => t >= start.AddSeconds(150) ? 2.0 : 1.0, DateTime.UtcNow);
+        Check($"{file}: a Treasure Hour's own boost is saved per chest", boosted.Any(e => e.Treasure && e.Boost == 2) && boosted.Any(e => !e.Treasure && e.Boost is null));
     }
 
     // a replay still being recorded (no key yet) must not be read

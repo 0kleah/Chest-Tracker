@@ -30,6 +30,20 @@ public sealed class ChestLogEntry
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Match { get; set; }
 
+    /// <summary>Treasure Hours boost for this chest (1.5, 2...). Null means the usual boost when <see cref="Treasure"/> is on.</summary>
+    [JsonPropertyName("boost")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? Boost { get; set; }
+
+    /// <summary>For chests read from a replay: where the chest was on the island (world units).</summary>
+    [JsonPropertyName("x")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public float? X { get; set; }
+
+    [JsonPropertyName("y")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public float? Y { get; set; }
+
     [JsonIgnore] public long Chests => Count > 0 ? Count : 1;
 
     [JsonIgnore]
@@ -135,6 +149,67 @@ public sealed class CountStore
             SaveLocked();
             return removed;
         }
+    }
+
+    /// <summary>A copy of every entry, oldest first (for stats and the map).</summary>
+    public List<ChestLogEntry> Snapshot()
+    {
+        lock (_gate) return _data.Log.ToList();
+    }
+
+    /// <summary>
+    /// Marks chests opened during a known Treasure Hour (that weren't marked yet) as Treasure Hours chests, with
+    /// that hour's boost. Bulk entries have no real time and are left alone. Returns how many changed.
+    /// </summary>
+    public int ApplyTreasureHours(Func<DateTime, double?> boostAt)
+    {
+        lock (_gate)
+        {
+            int changed = 0;
+            foreach (var e in _data.Log)
+            {
+                if (e.Source == "bulk" || e.When is not DateTime t || boostAt(t) is not double boost) continue;
+                if (e.Treasure && e.Boost is double b && Math.Abs(b - boost) < 1e-9) continue;
+                if (!e.Treasure)
+                {
+                    e.Treasure = true;
+                    _data.Normal = Math.Max(0, _data.Normal - e.Chests);
+                    _data.Treasure += e.Chests;
+                }
+                e.Boost = boost;
+                changed++;
+            }
+            if (changed > 0) SaveLocked();
+            return changed;
+        }
+    }
+
+    /// <summary>Fills in where a match's chests were (from its replay), matched in time order. Returns how many were set.</summary>
+    public int SetPositions(string match, IReadOnlyList<(float? X, float? Y)> positionsInOrder)
+    {
+        lock (_gate)
+        {
+            var entries = _data.Log.Where(e => e.Match == match && e.Source == "replay").OrderBy(e => e.When).ToList();
+            if (entries.Count != positionsInOrder.Count) return 0;
+            int set = 0;
+            for (int i = 0; i < entries.Count; i++)
+            {
+                if (positionsInOrder[i].X is null) continue;
+                entries[i].X = positionsInOrder[i].X;
+                entries[i].Y = positionsInOrder[i].Y;
+                set++;
+            }
+            if (set > 0) SaveLocked();
+            return set;
+        }
+    }
+
+    /// <summary>Matches whose chests have no position yet.</summary>
+    public HashSet<string> MatchesWithoutPositions()
+    {
+        lock (_gate)
+            return _data.Log.Where(e => e.Source == "replay" && e.Match is not null && e.X is null)
+                            .Select(e => e.Match!).ToHashSet();
     }
 
     public static string Stamp(DateTime local) => local.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);

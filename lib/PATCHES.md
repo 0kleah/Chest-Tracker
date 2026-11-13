@@ -19,3 +19,7 @@ Changes for ChestCounter:
 13. `Unreal.Core/ReplayReader.cs`: a ClassNetCache custom delta property that `RawProbe` asks for (`FortAbilitySystemComponentAthena_ClassNetCache.ActivatableAbilities`) is handed over raw instead of being decoded as `GrantedAbility`, whose generic NetDelta decoding gives garbage indices. Without it the treasure handler grants were never read on players with the `FortAbilitySystemComponentAthena` class.
 14. `FortniteReplayReader/Models/NetFieldExports/Items/BaseContainer.cs`: `bAlreadySearched` is `bool?` and `SearchAnimationCount` is `uint?`, so an update that does not carry them (null) is no longer read as "not searched" / 0. ChestCounter uses the explicit `false` to see that a chest was refilled and can be opened (and counted) again.
 15. `Unreal.Core/Models/NetGuidCache.cs`: a path that found no export group was remembered as failed for the whole replay. An actor sent a moment before its class's export group (e.g. a rare chest in view before the first rare chest is fully sent) was then never decoded, and its later updates (opened...) were lost. Adding a new export group clears that list so those paths are tried again.
+
+Changes for Chest Tracker 3.1 (in `ChestCounter.Analysis`):
+
+16. `ReplayAnalyzer.cs` + `Models.cs`: each chest gets its position (`ChestRecord.X`, `Y`, world units), for the chest map. It is the chest's own spawn location when the replay sends one (chests spawned during the match, such as sprite chests), otherwise where its loot spawned (the loot comes out of the chest). Counting is unchanged.

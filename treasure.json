@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "updated": "13 Nov 2026",
+  "eventStartUtc": "2026-11-01T14:00:00Z",
+  "eventEndUtc": "2026-12-05T14:00:00Z",
+  "hours": [
+    {
+      "startUtc": "2026-11-07T19:00:00Z",
+      "endUtc": "2026-11-07T21:00:00Z",
+      "pirate": 1.5,
+      "gold": 7.5,
+      "vehicle": 10
+    },
+    {
+      "startUtc": "2026-11-08T02:00:00Z",
+      "endUtc": "2026-11-08T04:00:00Z",
+      "pirate": 2,
+      "gold": 10,
+      "vehicle": 10
+    },
+    {
+      "startUtc": "2026-11-14T19:00:00Z",
+      "endUtc": "2026-11-14T21:00:00Z",
+      "pirate": 1.5,
+      "gold": 7.5,
+      "vehicle": 10
+    },
+    {
+      "startUtc": "2026-11-15T02:00:00Z",
+      "endUtc": "2026-11-15T04:00:00Z",
+      "pirate": 1.5,
+      "gold": 7.5,
+      "vehicle": 10
+    },
+    {
+      "startUtc": "2026-11-21T19:00:00Z",
+      "endUtc": "2026-11-21T21:00:00Z",
+      "pirate": 1.5,
+      "gold": 7.5,
+      "vehicle": 10
+    },
+    {
+      "startUtc": "2026-11-22T02:00:00Z",
+      "endUtc": "2026-11-22T04:00:00Z",
+      "pirate": 1.5,
+      "gold": 7.5,
+      "vehicle": 10
+    },
+    {
+      "startUtc": "2026-11-28T19:00:00Z",
+      "endUtc": "2026-11-28T21:00:00Z",
+      "pirate": 1.5,
+      "gold": 7.5,
+      "vehicle": 10
+    },
+    {
+      "startUtc": "2026-11-29T02:00:00Z",
+      "endUtc": "2026-11-29T04:00:00Z",
+      "pirate": 1.5,
+      "gold": 7.5,
+      "vehicle": 10
+    }
+  ],
+  "prizes": [
+    {
+      "name": "Weekly Gold Outfit",
+      "oneIn": 1562500,
+      "weekly": true,
+      "boost": "gold"
+    },
+    {
+      "name": "Pirate Shop Access",
+      "oneIn": 137500,
+      "weekly": false,
+      "boost": "pirate"
+    },
+    {
+      "name": "Weekly Vehicle \u0026 Decal",
+      "oneIn": 7813,
+      "weekly": true,
+      "boost": "vehicle"
+    },
+    {
+      "name": "Weekly Pickaxe or Back Bling",
+      "oneIn": 568,
+      "weekly": true,
+      "boost": null
+    },
+    {
+      "name": "Weekly Jam Track",
+      "oneIn": 391,
+      "weekly": true,
+      "boost": null
+    },
+    {
+      "name": "Weekly Loading Screen",
+      "oneIn": 272,
+      "weekly": true,
+      "boost": null
+    },
+    {
+      "name": "Gizmo (any)",
+      "oneIn": 127,
+      "weekly": false,
+      "boost": null
+    }
+  ],
+  "weeks": [
+    {
+      "number": 1,
+      "title": "A$AP Arrives",
+      "startUtc": "2026-11-01T14:00:00Z",
+      "endUtc": "2026-11-08T14:00:00Z",
+      "prizes": [
+        "Solid Gold A$AP Rocky (outfit)",
+        "Solid Gold A$AP Rocky\u0027s Gauntlets (pickaxe)",
+        "Gold Mercedes-AMG G 63 Decal",
+        "A$AP Rocky Jam Track",
+        "Plunder in Paradise (loading screen)"
+      ]
+    },
+    {
+      "number": 2,
+      "title": "Lil Uzi Arrives",
+      "startUtc": "2026-11-08T14:00:00Z",
+      "endUtc": "2026-11-15T14:00:00Z",
+      "prizes": [
+        "Solid Gold Lil Uzi Vert (outfit)",
+        "Diamond and Gold (back bling)",
+        "Gold Cadillac CT5-V Decal",
+        "Jam Track",
+        "So Kawaii (loading screen)"
+      ]
+    },
+    {
+      "number": 3,
+      "title": "Miku \u0026 Teto Arrive",
+      "startUtc": "2026-11-15T14:00:00Z",
+      "endUtc": "2026-11-22T14:00:00Z",
+      "prizes": []
+    },
+    {
+      "number": 4,
+      "title": "Oscar Arrives",
+      "startUtc": "2026-11-22T14:00:00Z",
+      "endUtc": "2026-11-29T14:00:00Z",
+      "prizes": []
+    },
+    {
+      "number": 5,
+      "title": "The Final Hunt",
+      "startUtc": "2026-11-29T14:00:00Z",
+      "endUtc": "2026-12-05T14:00:00Z",
+      "prizes": []
+    }
+  ],
+  "map": {
+    "imageUrl": "https://fortnite-api.com/images/map.png",
+    "poisUrl": "https://fortnite-api.com/v1/map",
+    "size": 2048,
+    "centerX": 978,
+    "centerY": 1017,
+    "scale": 0.0066,
+    "fromUtc": "2026-11-01T14:00:00Z"
+  },
+  "note": "Treasure drop rates from chests are constant since season launch and don\u0027t vary through the day, except during Treasure Hours. Other than Gizmos, you can\u0027t get the same treasure twice. (Epic Games)",
+  "PirateOneIn": 137500
+}

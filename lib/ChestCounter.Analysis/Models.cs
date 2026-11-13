@@ -10,6 +10,9 @@ public sealed class ChestRecord
     public string Blueprint { get; set; } = "";
     /// <summary>True when the chest was destroyed by the player instead of being opened.</summary>
     public bool Destroyed { get; set; }
+    /// <summary>Where the chest was (world units), from where its loot spawned. Null if no loot was seen.</summary>
+    public float? X { get; set; }
+    public float? Y { get; set; }
     public List<string> Items { get; set; } = new();
     public List<string> TreasureItems { get; set; } = new();
 }

@@ -15,6 +15,13 @@ namespace ChestTracker;
 public sealed record RecentRow(string Title, string Detail, Visibility TreasureVisibility);
 public sealed record MilestoneRow(string Target, string Normal, string Treasure, string Matches);
 public sealed record MatchRow(string When, string What);
+public sealed record DayBar(string Value, double BarHeight, Brush Brush, string Label, string Tip);
+public sealed record KindRow(string Name, double Share, string Count);
+public sealed record SourceRow(string Name, string Count);
+public sealed record SpotRow(string Name, string Detail, string Avg);
+public sealed record PrizeRow(string Name, string Detail, string OneIn, string Chance);
+public sealed record HourRow(string When, string Boosts, string Tag, Brush TagBack, Brush TagFore, double Fade);
+public sealed record WeekRow(string Header, string Title, string State, string Prizes, Brush Edge, double Fade);
 
 public partial class MainWindow : Window
 {
@@ -22,7 +29,7 @@ public partial class MainWindow : Window
     readonly AppState _app;
     OverlayWindow? _overlay;
     bool _ready;
-    readonly DispatcherTimer _liveTimer;
+    readonly DispatcherTimer _liveTimer, _onlineTimer;
 
     public MainWindow()
     {
@@ -34,19 +41,42 @@ public partial class MainWindow : Window
         AboutTitle.Text = $"Chest Tracker {version?.Major}.{version?.Minor}";
         DataPathText.Text = AppState.CountsPath;
 
-        _app.CountsChanged += () => Dispatcher.BeginInvoke(RefreshCounts);
+        _app.CountsChanged += () => Dispatcher.BeginInvoke(() => { RefreshCounts(); RefreshVisiblePage(); });
         _app.TreasureModeChanged += () => Dispatcher.BeginInvoke(() => { TreasureSwitch.IsChecked = _app.TreasureMode; RefreshCounts(); });
         _app.Tracker.StatusChanged += () => Dispatcher.BeginInvoke(RefreshStatus);
+        _app.Tracker.MatchCounted += (r, added) => Dispatcher.BeginInvoke(() => OnMatchCounted(r, added));
         _app.OverlayLockToggleRequested += () => Dispatcher.BeginInvoke(() => SetOverlayLocked(!_app.Settings.OverlayLocked));
+        _app.OnlineChanged += () => Dispatcher.BeginInvoke(() => { RefreshStatus(); RefreshVisiblePage(); });
 
         _liveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _liveTimer.Tick += (_, _) => RefreshStatus();
+        _liveTimer.Tick += (_, _) =>
+        {
+            _app.TickTreasure();
+            if (WindowState == WindowState.Minimized) return;
+            RefreshStatus();
+            if (TreasurePage.Visibility == Visibility.Visible) RefreshCountdown();
+        };
         _liveTimer.Start();
+
+        // update check + Treasure info every 3 hours (and once at start)
+        _onlineTimer = new DispatcherTimer { Interval = TimeSpan.FromHours(3) };
+        _onlineTimer.Tick += (_, _) => _ = _app.RefreshOnlineAsync();
+        _onlineTimer.Start();
+
+        // while you're playing (this window not in use), hand unused memory back to Windows every few minutes
+        var trimTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(3) };
+        trimTimer.Tick += (_, _) => { if (!IsActive) Memory.Trim(); };
+        trimTimer.Start();
 
         SourceInitialized += (_, _) => Win32.UseRoundedDarkFrame(new WindowInteropHelper(this).Handle);
         StateChanged += (_, _) =>
         {
             RootBorder.Margin = WindowState == WindowState.Maximized ? new Thickness(7) : new Thickness(0);
+            if (WindowState == WindowState.Minimized)
+            {
+                ReleaseMap();
+                Memory.Trim();   // nothing to draw while minimised: give the memory back
+            }
             MaxButton.Content = WindowState == WindowState.Maximized ? "" : "";
         };
         Loaded += OnLoaded;
@@ -66,12 +96,16 @@ public partial class MainWindow : Window
         RecalculateOdds();
         if (_app.Settings.OverlayEnabled) ShowOverlay();
         if (_app.Settings.AutoStart) _app.Tracker.Start();
+        _ = _app.RefreshOnlineAsync();
 
         // ChestTracker.exe --page odds|settings opens straight to that page
         var args = Environment.GetCommandLineArgs();
         int i = Array.IndexOf(args, "--page");
         if (i >= 0 && i + 1 < args.Length)
-            (args[i + 1].ToLowerInvariant() switch { "odds" => NavOdds, "settings" => NavSettings, _ => NavHome }).IsChecked = true;
+            (args[i + 1].ToLowerInvariant() switch
+            {
+                "odds" => NavOdds, "settings" => NavSettings, "stats" => NavStats, "map" => NavMap, "treasure" => NavTreasure, _ => NavHome,
+            }).IsChecked = true;
     }
 
     // ================================================================== refresh
@@ -82,21 +116,24 @@ public partial class MainWindow : Window
         double chance = _app.Chance;
         CountText.Text = total.ToString("N0");
         BreakdownText.Text = $"{normal:N0} normal · {treasure:N0} in Treasure Hours";
+        if (_app.EventChests != total)
+            BreakdownText.Text += $" · {_app.EventChests:N0} count for the token";
         long today = _app.Store.CountSince(DateTime.Today);
         TodayText.Text = today == 1 ? "1 today" : $"{today:N0} today";
         ChanceText.Text = Odds.Percent(chance);
         OneInText.Text = Odds.OneIn(chance);
 
-        // progress toward a 50% chance, measured in "normal chest equivalents"
+        // progress toward a 50% chance, measured in "normal chest equivalents" (boosted chests count for more)
         long half = Odds.ChestsNeeded(0.5, Odds.PerChest);
-        double equivalent = normal + treasure * _app.Settings.Boost;
+        double equivalent = chance <= 0 ? 0 : double.LogP1(-chance) / double.LogP1(-Odds.PerChest);
         double progress = Math.Min(1, equivalent / half);
         HalfProgress.Value = progress;
         ProgressText.Text = (progress * 100).ToString(progress < 0.1 ? "0.00" : "0.0", CultureInfo.InvariantCulture) + "%";
         long left = Math.Max(0, half - (long)equivalent);
         RemainingText.Text = left == 0 ? "You've passed a coin flip's worth of chests" : $"{left:N0} more chests to get there";
 
-        BoostText.Text = $"{_app.Settings.Boost:0.##}x";
+        BoostText.Text = $"{_app.CurrentBoost:0.##}x";
+        TreasureHint.Text = TreasureHintText();
         var rows = _app.Store.Recent(6).Select(r =>
         {
             string when = r.Entry.When is DateTime t
@@ -158,7 +195,47 @@ public partial class MainWindow : Window
             ErrorText.Text = err;
         }
         else ErrorBanner.Visibility = Visibility.Collapsed;
+
+        WarningBanner.Visibility = t.ReplayWarning is null ? Visibility.Collapsed : Visibility.Visible;
+        WarningText.Text = t.ReplayWarning ?? "";
+
+        if (_app.NewerRelease is { } rel)
+        {
+            UpdateBanner.Visibility = Visibility.Visible;
+            UpdateText.Text = $"{rel.Name} is out (you have {VersionText.Text}). Download it and put it in this folder instead of the old .exe, so your count carries over.";
+        }
+        else UpdateBanner.Visibility = Visibility.Collapsed;
     }
+
+    string TreasureHintText()
+    {
+        var now = DateTime.UtcNow;
+        if (_app.AutoHourNow is { } h)
+            return $"On automatically until {h.EndUtc.ToLocalTime():h:mm tt} ({h.Pirate:0.##}x token odds) · F9 to switch off";
+        if (_app.TreasureMode) return "Switched on by hand · F9 to switch off";
+        if (_app.Settings.AutoTreasure && _app.Treasure.NextHour(now) is { } next)
+            return $"Turns on by itself {When(next.StartUtc.ToLocalTime())} · F9 to switch it by hand";
+        return "Turn on during Treasure Hours · F9";
+    }
+
+    /// <summary>"today at 7:00 PM", "Sat 21 Nov at 7:00 PM".</summary>
+    static string When(DateTime local) =>
+        local.Date == DateTime.Today ? $"today at {local:h:mm tt}"
+        : local.Date == DateTime.Today.AddDays(1) ? $"tomorrow at {local:h:mm tt}"
+        : $"{local:ddd d MMM} at {local:h:mm tt}";
+
+    void OnMatchCounted(ReplayResult r, int added)
+    {
+        if (!r.Counts || added <= 0 || !_app.Settings.MatchSummary) return;
+        int sprite = r.Record.Chests.Count(c => ReplayChests.FriendlyKind(c.Blueprint).StartsWith("Sprite", StringComparison.Ordinal));
+        var parts = new List<string> { $"+{added} chest{(added == 1 ? "" : "s")}" };
+        if (sprite > 0) parts.Add($"{sprite} sprite");
+        if (r.Broken > 0) parts.Add($"{r.Broken} broken open");
+        _overlay?.ShowToast(string.Join(" · ", parts));
+    }
+
+    void Update_Click(object sender, RoutedEventArgs e) =>
+        Process.Start(new ProcessStartInfo(_app.NewerRelease?.Url ?? Online.ReleasesPage) { UseShellExecute = true });
 
     string LastMatchText()
     {
@@ -194,10 +271,26 @@ public partial class MainWindow : Window
 
     void Nav_Checked(object sender, RoutedEventArgs e)
     {
-        if (HomePage is null || OddsPage is null || SettingsPage is null) return;
-        HomePage.Visibility = NavHome.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-        OddsPage.Visibility = NavOdds.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-        SettingsPage.Visibility = NavSettings.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        if (HomePage is null || OddsPage is null || SettingsPage is null || StatsPage is null || MapPage is null || TreasurePage is null) return;
+        static Visibility V(RadioButton b) => b.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        HomePage.Visibility = V(NavHome);
+        StatsPage.Visibility = V(NavStats);
+        MapPage.Visibility = V(NavMap);
+        TreasurePage.Visibility = V(NavTreasure);
+        OddsPage.Visibility = V(NavOdds);
+        SettingsPage.Visibility = V(NavSettings);
+        if (MapPage.Visibility != Visibility.Visible) ReleaseMap();
+        if (TreasurePage.Visibility == Visibility.Visible && (_app.Status is null || DateTime.UtcNow - _app.Status.FetchedUtc > TimeSpan.FromMinutes(5)))
+            _ = _app.RefreshStatusAsync();
+        RefreshVisiblePage();
+    }
+
+    void RefreshVisiblePage()
+    {
+        if (!_ready) return;
+        if (StatsPage.Visibility == Visibility.Visible) RefreshStats();
+        else if (MapPage.Visibility == Visibility.Visible) _ = RefreshMapAsync();
+        else if (TreasurePage.Visibility == Visibility.Visible) RefreshTreasure();
     }
 
     // ================================================================== home actions
@@ -296,8 +389,8 @@ public partial class MainWindow : Window
 
     void UseMyCount_Click(object sender, RoutedEventArgs e)
     {
-        CalcNormal.Text = _app.Store.Normal.ToString(CultureInfo.InvariantCulture);
-        CalcTreasure.Text = _app.Store.Treasure.ToString(CultureInfo.InvariantCulture);
+        CalcNormal.Text = (_app.EventChests - _app.BoostedChests).ToString(CultureInfo.InvariantCulture);
+        CalcTreasure.Text = _app.BoostedChests.ToString(CultureInfo.InvariantCulture);
         CalcBoost.Text = _app.Settings.Boost.ToString(CultureInfo.InvariantCulture);
     }
 
@@ -317,6 +410,15 @@ public partial class MainWindow : Window
         CalcOneIn.Text = $"{Odds.OneIn(chance)}  ·  {normal + treasure:N0} chests";
         CalcBoostedPer.Text = $"1 in {Odds.BaseOdds / boost:N0} in Treasure Hours";
 
+        double expected = Odds.Expected(new[] { (normal, 1.0), (treasure, boost) }, Odds.BaseOdds);
+        double hundredK = Odds.ChanceAtLeastOne(100_000, 0, 1);
+        GuaranteeText.Text =
+            "Epic's rate is per chest: every chest has the same 1 in 137,500 chance (better in Treasure Hours), " +
+            "however many you've opened before. So the token is luck, not a reward for reaching a number. " +
+            $"Some players have opened over 100,000 chests without getting it. At 100,000 chests, about {hundredK:P0} of players " +
+            $"would have found it and {1 - hundredK:P0} wouldn't. Every number here is a chance, never a promise." +
+            (normal + treasure > 0 ? $" These {normal + treasure:N0} chests give {expected:0.###} tokens on average." : "");
+
         double pt = Odds.PerChestBoosted(boost);
         MilestoneList.ItemsSource = new[] { 0.10, 0.25, 0.50, 0.75, 0.90, 0.99 }.Select(target =>
         {
@@ -334,6 +436,9 @@ public partial class MainWindow : Window
         var s = _app.Settings;
         AutoStartSwitch.IsChecked = s.AutoStart;
         BeepSwitch.IsChecked = s.Beep;
+        AutoTreasureSwitch.IsChecked = s.AutoTreasure;
+        UpdatesSwitch.IsChecked = s.CheckUpdates;
+        SummarySwitch.IsChecked = s.MatchSummary;
         OverlaySwitch.IsChecked = s.OverlayEnabled;
         LockSwitch.IsChecked = s.OverlayLocked;
         var op = new[] { (Op60, 0.6), (Op75, 0.75), (Op92, 0.92), (Op100, 1.0) }
@@ -345,6 +450,15 @@ public partial class MainWindow : Window
 
     void AutoStartSwitch_Click(object sender, RoutedEventArgs e) { _app.Settings.AutoStart = AutoStartSwitch.IsChecked == true; Save(); }
     void BeepSwitch_Click(object sender, RoutedEventArgs e) { _app.Settings.Beep = BeepSwitch.IsChecked == true; Save(); }
+    void SummarySwitch_Click(object sender, RoutedEventArgs e) { _app.Settings.MatchSummary = SummarySwitch.IsChecked == true; Save(); }
+    void AutoTreasureSwitch_Click(object sender, RoutedEventArgs e) => _app.SetAutoTreasure(AutoTreasureSwitch.IsChecked == true);
+
+    void UpdatesSwitch_Click(object sender, RoutedEventArgs e)
+    {
+        _app.Settings.CheckUpdates = UpdatesSwitch.IsChecked == true;
+        Save();
+        _ = _app.RefreshOnlineAsync();
+    }
 
     void Opacity_Checked(object sender, RoutedEventArgs e)
     {

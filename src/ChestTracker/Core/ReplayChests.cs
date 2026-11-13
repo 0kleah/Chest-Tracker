@@ -56,16 +56,25 @@ public static class ReplayChests
 
     /// <summary>Count-log entries for a match, oldest first.</summary>
     /// <param name="treasureAt">Was Treasure Hours on at this local time?</param>
-    public static List<ChestLogEntry> Entries(ReplayResult r, Func<DateTime, bool> treasureAt, DateTime fallbackStartUtc)
+    public static List<ChestLogEntry> Entries(ReplayResult r, Func<DateTime, bool> treasureAt, DateTime fallbackStartUtc) =>
+        Entries(r, t => treasureAt(t) ? null : 1.0, fallbackStartUtc);
+
+    /// <summary>Count-log entries for a match, oldest first.</summary>
+    /// <param name="boostAt">Treasure Hours boost at this local time: 1 = none, null = on with the usual boost.</param>
+    public static List<ChestLogEntry> Entries(ReplayResult r, Func<DateTime, double?> boostAt, DateTime fallbackStartUtc)
     {
         if (!r.Counts) return new();
         return r.Record.Chests.OrderBy(c => c.TimeSeconds).Select(c =>
         {
             var when = LocalTime(r.Record, c, fallbackStartUtc);
+            double? boost = boostAt(when);
             return new ChestLogEntry
             {
                 Time = CountStore.Stamp(when),
-                Treasure = treasureAt(when),
+                Treasure = boost is null || boost > 1,
+                Boost = boost > 1 ? boost : null,
+                X = c.X,
+                Y = c.Y,
                 Source = "replay",
                 Kind = FriendlyKind(c.Blueprint),
                 Broken = c.Destroyed,
