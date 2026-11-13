@@ -103,6 +103,8 @@ public partial class OverlayWindow : Window
         OneInText.Visibility = V(s.OverlayShowOneIn && !compact);
         CountRow.Visibility = V(s.OverlayShowCount || s.OverlayShowChance);
         SessionRow.Visibility = V(s.OverlayShowSession);
+        SquadTotalRow.Visibility = V(_app.ShowSquadTotal);
+        SquadTotalLabel.Text = compact ? "With squad" : "With your squad";
         TodayRow.Visibility = V(s.OverlayShowToday);
         NextHourRow.Visibility = V(s.OverlayShowNextHour);
         StatusLine.Visibility = V(s.OverlayShowStatus);
@@ -169,6 +171,10 @@ public partial class OverlayWindow : Window
     /// <summary>The session, today and next Treasure Hour lines (every couple of seconds is plenty).</summary>
     public void UpdateLines()
     {
+        SquadTotalRow.Visibility = _app.ShowSquadTotal ? Visibility.Visible : Visibility.Collapsed;
+        if (_app.ShowSquadTotal)
+            SquadTotalText.Text = _app.Settings.OverlayCompact ? $"{_app.TotalWithSquad:N0}"
+                                : $"{_app.TotalWithSquad:N0} chests (+{_app.Squad.TotalChests:N0})";
         SessionText.Text = _app.Settings.OverlayCompact
             ? $"{_app.SessionChests:N0} in {_app.SessionMatches} match{(_app.SessionMatches == 1 ? "" : "es")}"
             : $"{_app.SessionChests:N0} chest{(_app.SessionChests == 1 ? "" : "s")} · {_app.SessionMatches} match{(_app.SessionMatches == 1 ? "" : "es")}";

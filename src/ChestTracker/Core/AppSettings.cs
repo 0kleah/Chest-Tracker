@@ -28,6 +28,8 @@ public sealed class AppSettings
     // Squad
     public bool SquadTab { get; set; }
     public bool SquadTracking { get; set; }
+    /// <summary>Show "with your squad" (your chests + your teammates') under your count, on Home and the overlay.</summary>
+    public bool SquadInTotal { get; set; }
 
     // Overlay content and size
     public double OverlayScale { get; set; } = 1.0;

@@ -95,6 +95,11 @@ public sealed class AppState
     /// <summary>Start of this session: when you last opened Fortnite (or today, if it hasn't run on this PC).</summary>
     public DateTime SessionStart => _sessionStart ?? DateTime.Today;
     public long SessionChests => _totals.SessionChests;
+
+    /// <summary>The squad line is on: squad tab, squad tracking and "add to my total" all switched on.</summary>
+    public bool ShowSquadTotal => Settings.SquadTab && Settings.SquadTracking && Settings.SquadInTotal;
+    /// <summary>Your chests plus your teammates' (only what your replays saw of theirs).</summary>
+    public long TotalWithSquad => Store.Total + Squad.TotalChests;
     public int SessionMatches => _totals.SessionMatches;
 
     void Recalc()

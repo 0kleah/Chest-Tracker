@@ -126,6 +126,9 @@ public partial class MainWindow : Window
             BreakdownText.Text += $" · {_app.EventChests:N0} count for the token";
         long today = _app.Store.CountSince(DateTime.Today);
         TodayText.Text = today == 1 ? "1 today" : $"{today:N0} today";
+        SquadHomeText.Visibility = _app.ShowSquadTotal ? Visibility.Visible : Visibility.Collapsed;
+        if (_app.ShowSquadTotal)
+            SquadHomeText.Text = $"With your squad: {_app.TotalWithSquad:N0} chests  (you {total:N0} + squad {_app.Squad.TotalChests:N0})";
         SessionHomeText.Text = $"This session: {_app.SessionChests:N0} chest{(_app.SessionChests == 1 ? "" : "s")} in {_app.SessionMatches} match{(_app.SessionMatches == 1 ? "" : "es")}"
                                + (_app.SessionStart.Date == DateTime.Today ? $" (since {_app.SessionStart:h:mm tt})" : $" (since {_app.SessionStart:ddd h:mm tt})");
         ChanceText.Text = Odds.Percent(chance);
@@ -234,6 +237,7 @@ public partial class MainWindow : Window
 
     void OnMatchCounted(ReplayResult r, int added)
     {
+        RefreshCounts();   // the squad line may have changed too
         if (!r.Counts || added <= 0 || !_app.Settings.MatchSummary) return;
         int sprite = r.Record.Chests.Count(c => ReplayChests.FriendlyKind(c.Blueprint).StartsWith("Sprite", StringComparison.Ordinal));
         var parts = new List<string> { $"+{added} chest{(added == 1 ? "" : "s")}" };

@@ -52,6 +52,9 @@ public sealed class SquadStore
 
     public bool HasMatch(string match) { lock (_gate) return _data.Matches.Contains(match); }
 
+    /// <summary>All teammates' chests together (what the replays saw).</summary>
+    public long TotalChests { get { lock (_gate) return _data.People.Sum(p => (long)p.Chests); } }
+
     /// <summary>Adds a match's teammates (once per match). Returns true if it was new.</summary>
     public bool AddMatch(MatchRecord rec)
     {

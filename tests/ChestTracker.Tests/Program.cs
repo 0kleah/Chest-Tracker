@@ -249,6 +249,7 @@ var mates = new SquadStore(sp).All();
 Check("squad: chests, types and finds per teammate", mates.Count == 2 && mates[0].Name == "Monsterboy8754" && mates[0].Matches == 2
       && mates[0].Chests == 4 && mates[0].Broken == 2 && mates[0].Kinds["Sprite chest"] == 2 && mates[0].Finds.Count == 2,
       mates.Count == 0 ? "none" : $"{mates[0].Name} {mates[0].Matches} {mates[0].Chests} {string.Join(",", mates[0].Kinds)} {mates[0].Finds.Count}");
+Check("squad: total of everyone's chests", new SquadStore(sp).TotalChests == 4);
 File.Delete(sp);
 
 var est = ChestStats.From(slog, now0);

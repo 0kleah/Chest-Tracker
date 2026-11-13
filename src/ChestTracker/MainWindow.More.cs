@@ -303,6 +303,8 @@ public partial class MainWindow
     void RefreshSquad()
     {
         SquadTrackSwitch.IsChecked = _app.Settings.SquadTracking;
+        SquadTotalSwitch.IsChecked = _app.Settings.SquadInTotal;
+        SquadTotalSwitch.IsEnabled = _app.Settings.SquadTracking;
         var people = _app.Squad.All();
         SquadList.ItemsSource = people.Select(p => new SquadRow(
             p.Bot ? $"{p.Name} (bot)" : p.Name,
@@ -327,6 +329,22 @@ public partial class MainWindow
         else SquadStatus.Text = "Off. Your list is kept; nothing new is added.";
         SquadStatus.Visibility = Visibility.Visible;
         RefreshSquad();
+        SquadChanged();
+    }
+
+    void SquadTotalSwitch_Click(object sender, RoutedEventArgs e)
+    {
+        _app.Settings.SquadInTotal = SquadTotalSwitch.IsChecked == true;
+        Save();
+        SquadChanged();
+    }
+
+    /// <summary>Squad settings or numbers changed: update the squad line on Home and the overlay.</summary>
+    void SquadChanged()
+    {
+        RefreshCounts();
+        _overlay?.ApplyLook();
+        _overlay?.UpdateLines();
     }
 
     void SquadClear_Click(object sender, RoutedEventArgs e)
@@ -338,6 +356,7 @@ public partial class MainWindow
         _app.Ledger.Save();
         if (_app.Settings.SquadTracking) _app.Tracker.RequestEnrich();
         RefreshSquad();
+        SquadChanged();
     }
 
     void SquadTabSwitch_Click(object sender, RoutedEventArgs e)
@@ -346,6 +365,7 @@ public partial class MainWindow
         Save();
         NavSquad.Visibility = _app.Settings.SquadTab ? Visibility.Visible : Visibility.Collapsed;
         if (!_app.Settings.SquadTab && NavSquad.IsChecked == true) NavSettings.IsChecked = true;
+        SquadChanged();
     }
 
     // ================================================================== efficiency (Stats page)

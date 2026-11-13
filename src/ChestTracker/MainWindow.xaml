@@ -121,6 +121,8 @@
                                             <TextBlock Text="CHESTS OPENED" Style="{StaticResource Label}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                                         </StackPanel>
                                         <TextBlock x:Name="CountText" Text="0" FontSize="84" FontWeight="Bold" Margin="-3,2,0,0"/>
+                                        <TextBlock x:Name="SquadHomeText" Text="" Foreground="{DynamicResource Gold}" FontSize="14" FontWeight="SemiBold"
+                                                   Margin="0,-4,0,6" Visibility="Collapsed"/>
                                         <TextBlock x:Name="BreakdownText" Text="0 normal · 0 in Treasure Hours" Style="{StaticResource Hint}" FontSize="13"/>
                                         <TextBlock x:Name="TodayText" Text="0 today" Foreground="{DynamicResource Gold}" FontSize="13" Margin="0,4,0,0"/>
                                         <TextBlock x:Name="SessionHomeText" Text="" Style="{StaticResource Hint}" FontSize="13" Margin="0,4,0,0"/>
@@ -910,6 +912,14 @@
                                 <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" FontSize="12"
                                            Text="Your replay only sees what happens near you, so a teammate who drops somewhere else won't have all their chests here. Their real totals are usually higher. Squad totals never change your own count or odds."/>
                                 <TextBlock x:Name="SquadStatus" Style="{StaticResource Hint}" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="Collapsed"/>
+                                <Border Style="{StaticResource Divider}"/>
+                                <CheckBox x:Name="SquadTotalSwitch" Style="{StaticResource Switch}" Click="SquadTotalSwitch_Click">
+                                    <StackPanel>
+                                        <TextBlock Text="Add my squad to my total" FontWeight="SemiBold"/>
+                                        <TextBlock Text="Shows &quot;with your squad&quot; (your chests plus your teammates') just under your count, on the overlay and on Home. Your own count and odds stay the same."
+                                                   Style="{StaticResource Hint}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </CheckBox>
                             </StackPanel>
                         </Border>
 
