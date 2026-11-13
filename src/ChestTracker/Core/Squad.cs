@@ -19,6 +19,11 @@ public sealed class Squadmate
     /// <summary>Prizes they found while playing with you ("Treasure gizmo · 13 Nov").</summary>
     [JsonPropertyName("finds")] public List<string> Finds { get; set; } = new();
     [JsonPropertyName("lastSeenUtc")] public DateTime? LastSeenUtc { get; set; }
+    /// <summary>Matches where they were in your party (queued with you) rather than a random fill.</summary>
+    [JsonPropertyName("partyMatches")] public int PartyMatches { get; set; }
+    /// <summary>Set by you: true = friend, false = not a friend, null = decide from your parties.</summary>
+    [JsonPropertyName("friend")] public bool? FriendOverride { get; set; }
+    [JsonIgnore] public bool IsFriend => FriendOverride ?? PartyMatches > 0;
 }
 
 /// <summary>
@@ -36,7 +41,14 @@ public sealed class SquadStore
     {
         [JsonPropertyName("people")] public List<Squadmate> People { get; set; } = new();
         [JsonPropertyName("matches")] public HashSet<string> Matches { get; set; } = new();
+        /// <summary>2 = party info is recorded. Older lists are rebuilt from the replays once.</summary>
+        [JsonPropertyName("version")] public int Version { get; set; }
     }
+
+    public const int CurrentVersion = 2;
+
+    /// <summary>Made by an older version (no party info): rebuild it from the replays.</summary>
+    public bool NeedsRebuild { get { lock (_gate) return _data.Version < CurrentVersion && _data.Matches.Count > 0; } }
 
     public SquadStore(string path)
     {
@@ -61,16 +73,23 @@ public sealed class SquadStore
         if (string.IsNullOrEmpty(rec.SessionId)) return false;
         lock (_gate)
         {
+            if (_data.Matches.Count == 0) _data.Version = CurrentVersion;
             if (!_data.Matches.Add(rec.SessionId)) return false;
             foreach (var mate in rec.Teammates)
             {
                 if (string.IsNullOrWhiteSpace(mate.Name) && mate.EpicId is null) continue;
                 var p = _data.People.FirstOrDefault(x => (mate.EpicId is not null && x.EpicId == mate.EpicId)
                                                          || (!string.IsNullOrEmpty(mate.Name) && string.Equals(x.Name, mate.Name, StringComparison.OrdinalIgnoreCase)));
-                if (p is null) { p = new Squadmate { EpicId = mate.EpicId, Bot = mate.IsBot }; _data.People.Add(p); }
+                if (p is null)
+                {
+                    p = new Squadmate { EpicId = mate.EpicId, Bot = mate.IsBot };
+                    if (_pendingChoices.TryGetValue(mate.EpicId ?? mate.Name, out var choice)) p.FriendOverride = choice;
+                    _data.People.Add(p);
+                }
                 if (!string.IsNullOrWhiteSpace(mate.Name)) p.Name = mate.Name;   // keep the latest name
                 p.EpicId ??= mate.EpicId;
                 p.Matches++;
+                if (mate.InMyParty) p.PartyMatches++;
                 p.Chests += mate.Chests.Count;
                 p.Broken += mate.Chests.Count(c => c.Destroyed);
                 foreach (var c in mate.Chests)
@@ -97,9 +116,34 @@ public sealed class SquadStore
         lock (_gate) { _data.People.RemoveAll(p => p.Name == name); Save(); }
     }
 
+    /// <summary>Marks someone as a friend or not (null = go back to deciding from your parties).</summary>
+    public void SetFriend(string name, bool? friend)
+    {
+        lock (_gate)
+        {
+            foreach (var p in _data.People.Where(p => p.Name == name)) p.FriendOverride = friend;
+            Save();
+        }
+    }
+
+    /// <summary>Starts again with party info; your friend choices are kept and put back as matches are re-read.</summary>
+    public Dictionary<string, bool> Rebuild()
+    {
+        lock (_gate)
+        {
+            var choices = _data.People.Where(p => p.FriendOverride is not null).ToDictionary(p => p.EpicId ?? p.Name, p => p.FriendOverride!.Value);
+            _data = new Data { Version = CurrentVersion };
+            _pendingChoices = choices;
+            Save();
+            return choices;
+        }
+    }
+
+    Dictionary<string, bool> _pendingChoices = new();
+
     public void Clear()
     {
-        lock (_gate) { _data = new Data(); Save(); }
+        lock (_gate) { _data = new Data { Version = CurrentVersion }; Save(); }
     }
 
     void Save()

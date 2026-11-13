@@ -232,6 +232,11 @@ public class FortniteReplayBuilder
             playerData.TeamIndex = state.TeamIndex;
         }
 
+        if (!string.IsNullOrEmpty(state.PartyOwnerUniqueId))
+        {
+            playerData.PartyOwnerId = state.PartyOwnerUniqueId;
+        }
+
         playerData.Placement ??= state.Place;
         playerData.TeamKills = state.TeamKillScore ?? playerData.TeamKills;
         playerData.Kills = state.KillScore ?? playerData.Kills;

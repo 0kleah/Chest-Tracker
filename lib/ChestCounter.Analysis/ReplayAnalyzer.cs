@@ -743,6 +743,7 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
                     Name = mate.PlayerName ?? mate.StreamerModeName ?? "",
                     EpicId = mate.EpicId,
                     IsBot = mate.IsBot,
+                    InMyParty = !mate.IsBot && target.PartyOwnerId is { Length: > 0 } myParty && mate.PartyOwnerId == myParty,
                     Chests = mateSearches.Where(x => ChestKinds.IsChest(ChestKinds.Classify(x.Label)))
                         .Select(x => new ChestRecord
                         {
@@ -888,6 +889,31 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
             var goldenEnemy = _prizes.Count(x => x.Pawn is uint w && !targetPawns.Contains(w) && !teammatePawns.ContainsKey(w));
             Console.Error.WriteLine($"DBG searches enemy={enemy} mates={mates} duration={replay.Info?.LengthInMs / 1000} goldenEnemy={goldenEnemy} team={teammatePawns.Count}");
         }
+        // Golden chest prizes anyone got (the replay only sees players near the recording player).
+        var seenPrizes = new List<SeenPrize>();
+        foreach (var pz in _prizes.OrderBy(p => p.Time))
+        {
+            string who = "other";
+            PlayerData? owner = null;
+            if (pz.Pawn is uint pawn)
+            {
+                if (targetPawns.Contains(pawn)) who = "me";
+                else if (teammatePawns.ContainsKey(pawn)) who = "teammate";
+                if (_pawnToPlayerState.TryGetValue(pawn, out var ownerPs) && _playerStateToPlayerId.TryGetValue(ownerPs, out var ownerId))
+                {
+                    owner = players.FirstOrDefault(p => p.Id == ownerId);
+                }
+            }
+            seenPrizes.Add(new SeenPrize
+            {
+                TimeSeconds = MathF.Round(pz.Time, 1),
+                PrizeId = pz.PrizeId,
+                PlayerName = owner?.PlayerName ?? owner?.StreamerModeName ?? "",
+                Who = who,
+                IsBot = owner?.IsBot == true,
+            });
+        }
+
         teamFinds.Sort((a, b) => (a.ObtainedAtSeconds ?? float.MaxValue).CompareTo(b.ObtainedAtSeconds ?? float.MaxValue));
         finds.Sort((a, b) => (a.ObtainedAtSeconds ?? float.MaxValue).CompareTo(b.ObtainedAtSeconds ?? float.MaxValue));
 
@@ -923,6 +949,7 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
             TreasureFinds = finds,
             TeamTreasureFinds = teamFinds,
             Teammates = teammates,
+            SeenPrizes = seenPrizes,
         };
     }
 }

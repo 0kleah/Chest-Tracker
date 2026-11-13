@@ -49,12 +49,25 @@ public sealed class TreasureFind
     public string? Teammate { get; set; }
 }
 
+/// <summary>A golden chest prize anyone in the match got, if the replay saw it (only near the recording player).</summary>
+public sealed class SeenPrize
+{
+    public float TimeSeconds { get; set; }
+    public string PrizeId { get; set; } = "";
+    public string PlayerName { get; set; } = "";
+    /// <summary>"me", "teammate" or "other".</summary>
+    public string Who { get; set; } = "other";
+    public bool IsBot { get; set; }
+}
+
 /// <summary>A teammate in the match and the chests the replay saw them open.</summary>
 public sealed class TeammateRecord
 {
     public string Name { get; set; } = "";
     public string? EpicId { get; set; }
     public bool IsBot { get; set; }
+    /// <summary>Queued with the recording player (same party), so most likely a friend; false for random fills.</summary>
+    public bool InMyParty { get; set; }
     public List<ChestRecord> Chests { get; set; } = new();
     public int AmmoBoxes { get; set; }
 }
@@ -90,6 +103,8 @@ public sealed class MatchRecord
     public List<TreasureFind> TeamTreasureFinds { get; set; } = new();
     /// <summary>Teammates and the chests the replay saw them open (only near the recording player).</summary>
     public List<TeammateRecord> Teammates { get; set; } = new();
+    /// <summary>Every golden chest prize the replay saw anyone get (you, teammates, other players nearby).</summary>
+    public List<SeenPrize> SeenPrizes { get; set; } = new();
 }
 
 public sealed class Config

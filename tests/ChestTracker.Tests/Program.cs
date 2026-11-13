@@ -27,7 +27,8 @@ if (args.Length >= 2 && args[0] == "--replays")
                 Console.WriteLine($"    placement {rec.Placement}/{rec.TotalPlayers} elims {rec.Eliminations} playlist {rec.Playlist} length {rec.DurationSeconds}s");
                 foreach (var fd in rec.TreasureFinds) Console.WriteLine($"    FIND {fd.ObtainedAtSeconds}s {fd.Item} raw={fd.RawItem} id={fd.PrizeId} golden={fd.FromGoldenChest} src={fd.SourceBlueprint}");
                 foreach (var fd in rec.TeamTreasureFinds) Console.WriteLine($"    TEAMFIND {fd.ObtainedAtSeconds}s {fd.Item} raw={fd.RawItem} id={fd.PrizeId} by={fd.Teammate}");
-                foreach (var tm in rec.Teammates) Console.WriteLine($"    MATE {(tm.IsBot ? "(bot) " : "")}{tm.Name}: {tm.Chests.Count} chests ({tm.Chests.Count(c => c.Destroyed)} broken), {tm.AmmoBoxes} ammo");
+                foreach (var tm in rec.Teammates) Console.WriteLine($"    MATE {(tm.IsBot ? "(bot) " : "")}{(tm.InMyParty ? "(party) " : "")}{tm.Name}: {tm.Chests.Count} chests ({tm.Chests.Count(c => c.Destroyed)} broken), {tm.AmmoBoxes} ammo");
+                foreach (var sp2 in rec.SeenPrizes) Console.WriteLine($"    PRIZE {sp2.TimeSeconds}s {sp2.PrizeId} {sp2.Who} {sp2.PlayerName}{(sp2.IsBot ? " (bot)" : "")}");
             }
             if (args.Length >= 3 && args[2] == "--where")
                 foreach (var ch in r.Record.Chests)
@@ -250,6 +251,18 @@ Check("squad: chests, types and finds per teammate", mates.Count == 2 && mates[0
       && mates[0].Chests == 4 && mates[0].Broken == 2 && mates[0].Kinds["Sprite chest"] == 2 && mates[0].Finds.Count == 2,
       mates.Count == 0 ? "none" : $"{mates[0].Name} {mates[0].Matches} {mates[0].Chests} {string.Join(",", mates[0].Kinds)} {mates[0].Finds.Count}");
 Check("squad: total of everyone's chests", new SquadStore(sp).TotalChests == 4);
+var sq2 = new SquadStore(sp);
+frec.SessionId = "M3";
+frec.Teammates[0].InMyParty = true;
+sq2.AddMatch(frec);
+var mb = sq2.All().First(x => x.Name == "Monsterboy8754");
+var wz = sq2.All().First(x => x.Name == "Wir3D._");
+Check("squad: queued together = friend, fill = random", mb.PartyMatches == 1 && mb.IsFriend && !wz.IsFriend);
+sq2.SetFriend("Wir3D._", true);
+sq2.SetFriend("Monsterboy8754", false);
+Check("squad: you can change who's a friend", new SquadStore(sp).All() is var sq3 && sq3.First(x => x.Name == "Wir3D._").IsFriend && !sq3.First(x => x.Name == "Monsterboy8754").IsFriend);
+Check("prizes: token found by name, others named", FindNames.IsToken("DelilahPrize:PirateShopAccess") && !FindNames.IsToken("DelilahPrize:dpid_item3")
+      && FindNames.PrizeName("DelilahPrize:dpid_item4") == "No Trespassing (Jam Track)" && FindNames.PrizeName("DelilahPrize:dpid_item9").Contains("dpid_item9"));
 File.Delete(sp);
 
 var est = ChestStats.From(slog, now0);

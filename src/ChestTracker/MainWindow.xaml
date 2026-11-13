@@ -754,6 +754,7 @@
                     <Grid Grid.Row="1" Grid.Column="2">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition/>
                         </Grid.RowDefinitions>
                         <Border Style="{StaticResource Card}" Padding="16,12" Margin="0,0,0,12">
@@ -776,7 +777,15 @@
                                 </StackPanel>
                             </UniformGrid>
                         </Border>
-                        <Border Grid.Row="1" Style="{StaticResource Card}" Padding="8" ClipToBounds="True">
+                        <Border x:Name="PrizesBox" Grid.Row="1" Style="{StaticResource Card}" Padding="16,12" Margin="0,0,0,12" VerticalAlignment="Top">
+                            <StackPanel>
+                                <TextBlock Text="GOLDEN CHEST PRIZES IN THIS MATCH" Style="{StaticResource Label}"/>
+                                <TextBlock x:Name="PrizesText" Margin="0,6,0,0" TextWrapping="Wrap" FontSize="12.5"/>
+                                <TextBlock Text="Only prizes found near you show up: your replay doesn't see the rest of the island. A token found far away won't be here."
+                                           Style="{StaticResource Hint}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="RouteBox" Grid.Row="2" Style="{StaticResource Card}" Padding="8" ClipToBounds="True">
                             <Grid>
                                 <Viewbox Stretch="Uniform">
                                     <Grid Width="1000" Height="1000">
@@ -909,6 +918,8 @@
                                     </StackPanel>
                                 </CheckBox>
                                 <Border Style="{StaticResource Divider}"/>
+                                <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,8"
+                                           Text="FRIEND means they queued with you in your party (fills are RANDOM). Fortnite doesn't save your friends list on your PC, so press &quot;Mark as friend&quot; for anyone it got wrong."/>
                                 <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" FontSize="12"
                                            Text="Your replay only sees what happens near you, so a teammate who drops somewhere else won't have all their chests here. Their real totals are usually higher. Squad totals never change your own count or odds."/>
                                 <TextBlock x:Name="SquadStatus" Style="{StaticResource Hint}" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="Collapsed"/>
@@ -940,7 +951,14 @@
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel>
-                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13.5"/>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13.5" VerticalAlignment="Center"/>
+                                                            <Border CornerRadius="6" Padding="7,1" Margin="8,0,0,0" Background="{Binding BadgeBack}" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Badge}" FontSize="10.5" FontWeight="SemiBold" Foreground="{Binding BadgeFore}"/>
+                                                            </Border>
+                                                            <Button Style="{StaticResource LinkButton}" Content="{Binding FriendAction}" Tag="{Binding Key}" Click="SquadFriend_Click"
+                                                                    FontSize="11.5" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                                        </StackPanel>
                                                         <TextBlock Text="{Binding Detail}" Style="{StaticResource Hint}" FontSize="11.5" Margin="0,2,0,0" TextWrapping="Wrap"/>
                                                         <TextBlock Text="{Binding Kinds}" Style="{StaticResource Hint}" FontSize="11.5" Margin="0,2,0,0" TextWrapping="Wrap"/>
                                                         <TextBlock Text="{Binding Finds}" Foreground="{DynamicResource Gold}" FontSize="11.5" Margin="0,3,0,0" TextWrapping="Wrap"

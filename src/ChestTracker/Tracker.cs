@@ -224,11 +224,14 @@ public sealed class Tracker
     /// (Finds), placement and eliminations (Matches) and, if squad tracking is on, your teammates. A few replays per
     /// pass so new matches are never held up. Returns true while there is more to do.
     /// </summary>
+    /// <summary>Bump to read every saved replay once more for new details (3.3: golden prizes seen, party).</summary>
+    public const int DetailsVersion = 2;
+
     bool EnrichOlder(int maxReplays)
     {
         bool squad = _app.Settings.SquadTracking;
         var todo = _app.Ledger.All()
-            .Where(e => !e.DetailsTried || (squad && !e.SquadTried))
+            .Where(e => !e.DetailsTried || e.DetailsVersion < DetailsVersion || (squad && !e.SquadTried))
             .OrderByDescending(e => e.MatchStartUtc ?? DateTime.MinValue)
             .ToList();
         if (todo.Count == 0) return false;
@@ -247,12 +250,13 @@ public sealed class Tracker
                 try
                 {
                     var r = ReplayChests.Analyze(path);
-                    ApplyDetails(e, r, details: !e.DetailsTried, squad: needSquad);
+                    ApplyDetails(e, r, details: !e.DetailsTried || e.DetailsVersion < DetailsVersion, squad: needSquad);
                     changed = true;
                 }
                 catch (Exception) { }
             }
             e.DetailsTried = true;
+            e.DetailsVersion = DetailsVersion;
             if (needSquad) e.SquadTried = true;
         }
         _app.Ledger.Save();
@@ -276,6 +280,8 @@ public sealed class Tracker
             if (r.Counts && !string.IsNullOrEmpty(rec.SessionId))
                 _app.Store.SetPositions(rec.SessionId, rec.Chests.OrderBy(c => c.TimeSeconds).Select(c => (c.X, c.Y)).ToList(), onlyMissing: true);
             if (rec.IsBattleRoyale && rec.IsReplayOwner) _app.Finds.AddFromReplay(rec);
+            entry.Prizes = rec.SeenPrizes.Count == 0 ? null : rec.SeenPrizes
+                .Select(p => new ReplayLedger.PrizeSeen { Who = p.Who, Player = p.PlayerName, PrizeId = p.PrizeId, TimeSeconds = p.TimeSeconds }).ToList();
         }
         if (squad && rec.IsBattleRoyale && rec.IsReplayOwner) _app.Squad.AddMatch(rec);
     }
@@ -317,6 +323,7 @@ public sealed class Tracker
         entry.PositionsTried = true;
         try { ApplyDetails(entry, r, details: true, squad: _app.Settings.SquadTracking); } catch (Exception) { }
         entry.DetailsTried = true;
+        entry.DetailsVersion = DetailsVersion;
         entry.SquadTried = _app.Settings.SquadTracking;
         ledger.Set(entry);
         ledger.Save();

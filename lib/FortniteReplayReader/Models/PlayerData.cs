@@ -16,6 +16,7 @@ public class PlayerData
         PlayerNumber = playerState.WorldPlayerId is not null ? (int?)playerState.WorldPlayerId : null;
         StreamerModeName = playerState.StreamerModeName?.Text;
         IsPartyLeader = playerState.PartyOwnerUniqueId == playerState.UniqueId || playerState.PartyOwnerUniqueId == playerState.UniqueID;
+        PartyOwnerId = string.IsNullOrEmpty(playerState.PartyOwnerUniqueId) ? null : playerState.PartyOwnerUniqueId;
         TeamIndex = playerState.TeamIndex;
         Level = playerState.Level;
         SeasonLevelUIDisplay = playerState.SeasonLevelUIDisplay;
@@ -52,6 +53,8 @@ public class PlayerData
     public int? PlayerNumber { get; set; }
     public int? TeamIndex { get; set; }
     public bool IsPartyLeader { get; set; }
+    /// <summary>Epic id of the leader of this player's party (players who queued together share it).</summary>
+    public string? PartyOwnerId { get; set; }
     public bool IsReplayOwner { get; set; }
     public bool? IsGameSessionOwner { get; set; }
     public bool? HasFinishedLoading { get; set; }

@@ -126,6 +126,21 @@ public static class FindNames
         return ("Treasure gizmo", "Gizmo", true);
     }
 
+    /// <summary>Is this golden chest prize the Pirate Shop Access token? (Its id hasn't been seen yet; it's matched by name.)</summary>
+    public static bool IsToken(string prizeId)
+    {
+        var id = prizeId.ToLowerInvariant();
+        return id.Contains("pirate") || id.Contains("shopaccess") || id.Contains("shop_access") || id.Contains("itemshop");
+    }
+
+    /// <summary>Plain name for a golden chest prize id seen in a replay.</summary>
+    public static string PrizeName(string prizeId)
+    {
+        if (IsToken(prizeId)) return "Pirate Shop Access token";
+        var (name, _, unsure) = Describe(new TreasureFind { PrizeId = prizeId, RawItem = prizeId });
+        return name == "Golden chest prize" ? $"Golden chest prize ({prizeId})" : unsure ? name + " (probably)" : name;
+    }
+
     /// <summary>What you can pick when adding a find by hand: this event's prizes, the gizmos and the token.</summary>
     public static List<(string Name, string Category, int? Week)> Catalog(TreasureInfo info)
     {

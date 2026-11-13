@@ -39,6 +39,21 @@ public sealed class ReplayLedger
         /// <summary>Teammates from this replay were added to squad totals (or looked for).</summary>
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
         public bool SquadTried { get; set; }
+        /// <summary>Which version of the details pass read this replay (re-read once when it goes up).</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+        public int DetailsVersion { get; set; }
+        /// <summary>Golden chest prizes the replay saw anyone get in this match.</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public List<PrizeSeen>? Prizes { get; set; }
+    }
+
+    /// <summary>A golden chest prize seen in a match: who got it ("me", "teammate", "other") and what.</summary>
+    public sealed class PrizeSeen
+    {
+        public string Who { get; set; } = "other";
+        public string Player { get; set; } = "";
+        public string PrizeId { get; set; } = "";
+        public float TimeSeconds { get; set; }
     }
 
     public bool Initialized { get; set; }

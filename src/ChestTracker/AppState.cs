@@ -56,6 +56,13 @@ public sealed class AppState
         Ledger = ReplayLedger.Load(LedgerPath);
         Finds = new FindStore(FindsPath);
         Squad = new SquadStore(SquadPath);
+        if (Squad.NeedsRebuild)
+        {
+            // squad lists from 3.2 have no party info: read the saved replays again (friend choices are kept)
+            Squad.Rebuild();
+            foreach (var e in Ledger.All()) e.SquadTried = false;
+            Ledger.Save();
+        }
         Treasure = TreasureInfo.Load(TreasureInfoPath);
         Places = LoadPlaces();
         ApplyTreasureSchedule();

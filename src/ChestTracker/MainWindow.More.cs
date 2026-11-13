@@ -15,7 +15,8 @@ namespace ChestTracker;
 
 public sealed record MatchHistoryRow(string Id, string When, string Detail, string Chests);
 public sealed record FindRow(string Id, string Icon, string Name, string Detail);
-public sealed record SquadRow(string Name, string Detail, string Kinds, string Finds, Visibility FindsVisibility, string Chests);
+public sealed record SquadRow(string Key, string Name, string Badge, Brush BadgeBack, Brush BadgeFore, string FriendAction,
+                              string Detail, string Kinds, string Finds, Visibility FindsVisibility, string Chests);
 public sealed record EffRow(string Name, string Matches, string Five, string Rate);
 
 /// <summary>Matches, Finds and Squad pages; efficiency stats; tray, reminders; overlay look and colours.</summary>
@@ -86,6 +87,8 @@ public partial class MainWindow
             if (e.Eliminations is int el) bits.Add($"{el} elim{(el == 1 ? "" : "s")}");
             if (Mode(e.Playlist) is string mode) bits.Add(mode);
             if (e.Broken > 0) bits.Add($"{e.Broken} broken open");
+            if (e.Prizes is { Count: > 0 } pz)
+                bits.Add(pz.Any(x => FindNames.IsToken(x.PrizeId)) ? "TOKEN FOUND!" : $"{pz.Count} golden prize{(pz.Count == 1 ? "" : "s")} seen");
             return new MatchHistoryRow(e.SessionId!, t.Date == DateTime.Today ? $"Today {t:h:mm tt}" : t.ToString("ddd d MMM, h:mm tt"),
                                        bits.Count == 0 ? "Battle Royale" : string.Join(" · ", bits), e.ChestsCounted.ToString("N0"));
         }).ToList();
@@ -116,6 +119,25 @@ public partial class MainWindow
         MatchElims.Text = entry?.Eliminations?.ToString() ?? "–";
         MatchChests.Text = entry?.ChestsCounted.ToString("N0") ?? "–";
         MatchLength.Text = entry?.DurationSeconds is int d ? $"{d / 60}:{d % 60:00}" : "–";
+        if (entry?.Prizes is { Count: > 0 } prizes)
+        {
+            PrizesText.Text = string.Join("\n", prizes.Select(p =>
+            {
+                string who = p.Who switch
+                {
+                    "me" => "You",
+                    "teammate" => string.IsNullOrEmpty(p.Player) ? "A teammate" : $"{p.Player} (teammate)",
+                    _ => string.IsNullOrEmpty(p.Player) ? "Another player" : p.Player,
+                };
+                return $"{(FindNames.IsToken(p.PrizeId) ? "TOKEN: " : "")}{who} got {FindNames.PrizeName(p.PrizeId)} at {(int)p.TimeSeconds / 60}:{(int)p.TimeSeconds % 60:00}";
+            }));
+            PrizesText.Foreground = prizes.Any(p => FindNames.IsToken(p.PrizeId)) ? (Brush)FindResource("Gold") : (Brush)FindResource("Text");
+        }
+        else
+        {
+            PrizesText.Text = entry is null ? "" : entry.DetailsVersion < Tracker.DetailsVersion ? "Still reading this match's replay…" : "None seen near you in this match.";
+            PrizesText.Foreground = (Brush)FindResource("TextDim");
+        }
         if (RouteImage.Source is null)
         {
             RouteMessage.Text = "Loading the map…";
@@ -306,9 +328,20 @@ public partial class MainWindow
         SquadTotalSwitch.IsChecked = _app.Settings.SquadInTotal;
         SquadTotalSwitch.IsEnabled = _app.Settings.SquadTracking;
         var people = _app.Squad.All();
+        var gold = (Brush)FindResource("Gold");
+        var goldSoft = new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xCD, 0x50));
+        var dim = (Brush)FindResource("TextDim");
+        var dimSoft = (Brush)FindResource("Surface2");
         SquadList.ItemsSource = people.Select(p => new SquadRow(
+            p.Name,
             p.Bot ? $"{p.Name} (bot)" : p.Name,
-            $"{p.Matches} match{(p.Matches == 1 ? "" : "es")} together · last {p.LastSeenUtc?.ToLocalTime().ToString("d MMM") ?? "?"}" + (p.Broken > 0 ? $" · {p.Broken} broken open" : ""),
+            p.Bot ? "BOT" : p.IsFriend ? "FRIEND" : "RANDOM",
+            p.IsFriend && !p.Bot ? goldSoft : dimSoft,
+            p.IsFriend && !p.Bot ? gold : dim,
+            p.Bot ? "" : p.IsFriend ? "Not a friend?" : "Mark as friend",
+            $"{p.Matches} match{(p.Matches == 1 ? "" : "es")} together"
+                + (p.PartyMatches > 0 ? $" ({p.PartyMatches} in your party)" : p.Bot ? "" : " (random fill)")
+                + $" · last {p.LastSeenUtc?.ToLocalTime().ToString("d MMM") ?? "?"}" + (p.Broken > 0 ? $" · {p.Broken} broken open" : ""),
             p.Kinds.Count == 0 ? "No chests seen near you" : string.Join(" · ", p.Kinds.OrderByDescending(k => k.Value).Select(k => $"{k.Value} {k.Key}{(k.Value == 1 ? "" : "s")}")),
             p.Finds.Count == 0 ? "" : "Found: " + string.Join("; ", p.Finds),
             p.Finds.Count == 0 ? Visibility.Collapsed : Visibility.Visible,
@@ -330,6 +363,15 @@ public partial class MainWindow
         SquadStatus.Visibility = Visibility.Visible;
         RefreshSquad();
         SquadChanged();
+    }
+
+    void SquadFriend_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not string name) return;
+        var p = _app.Squad.All().FirstOrDefault(x => x.Name == name);
+        if (p is null) return;
+        _app.Squad.SetFriend(name, !p.IsFriend);
+        RefreshSquad();
     }
 
     void SquadTotalSwitch_Click(object sender, RoutedEventArgs e)
