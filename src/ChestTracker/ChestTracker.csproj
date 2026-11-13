@@ -11,7 +11,7 @@
     <RootNamespace>ChestTracker</RootNamespace>
     <ApplicationIcon>chest.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>3.2.0</Version>
+    <Version>3.2.1</Version>
     <Product>Chest Tracker</Product>
     <Description>Counts the chests you open in Fortnite and shows your Pirate Token odds.</Description>
     <Copyright>Copyright (c) 2026 0kleah. MIT License.</Copyright>
