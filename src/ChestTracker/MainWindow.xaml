@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Chest Tracker" Width="1060" Height="800" MinWidth="920" MinHeight="640"
         WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResize"
-        Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
+        Background="{DynamicResource Bg}" Foreground="{DynamicResource Text}"
         FontFamily="{StaticResource UiFont}" FontSize="13" Icon="chest.ico"
         UseLayoutRounding="True" SnapsToDevicePixels="True">
     <WindowChrome.WindowChrome>
@@ -23,25 +23,28 @@
             </Grid.ColumnDefinitions>
 
             <!-- ======================================================== sidebar -->
-            <Border Grid.RowSpan="2" Background="{StaticResource Sidebar}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0"/>
-            <Image Source="{StaticResource ChestIcon}" Width="30" Height="30" VerticalAlignment="Bottom" Margin="0,0,0,2"/>
+            <Border Grid.RowSpan="2" Background="{DynamicResource Sidebar}" BorderBrush="{DynamicResource Line}" BorderThickness="0,0,1,0"/>
+            <Image Source="{DynamicResource ChestIcon}" Width="30" Height="30" VerticalAlignment="Bottom" Margin="0,0,0,2"/>
 
-            <StackPanel Grid.Row="1" Margin="0,18,0,0">
+            <StackPanel Grid.Row="1" Margin="0,8,0,0">
                 <RadioButton x:Name="NavHome" Style="{StaticResource NavButton}" Tag="&#xE80F;" Content="Home" IsChecked="True" Checked="Nav_Checked"/>
                 <RadioButton x:Name="NavStats" Style="{StaticResource NavButton}" Tag="&#xE9D9;" Content="Stats" Checked="Nav_Checked"/>
                 <RadioButton x:Name="NavMap" Style="{StaticResource NavButton}" Tag="&#xE707;" Content="Map" Checked="Nav_Checked"/>
+                <RadioButton x:Name="NavMatches" Style="{StaticResource NavButton}" Tag="&#xE81C;" Content="Matches" Checked="Nav_Checked"/>
+                <RadioButton x:Name="NavFinds" Style="{StaticResource NavButton}" Tag="&#xE734;" Content="Finds" Checked="Nav_Checked"/>
                 <RadioButton x:Name="NavTreasure" Style="{StaticResource NavButton}" Tag="&#xE7C1;" Content="Treasure" Checked="Nav_Checked"/>
                 <RadioButton x:Name="NavOdds" Style="{StaticResource NavButton}" Tag="&#xE8EF;" Content="Odds" Checked="Nav_Checked"/>
+                <RadioButton x:Name="NavSquad" Style="{StaticResource NavButton}" Tag="&#xE716;" Content="Squad" Checked="Nav_Checked" Visibility="Collapsed"/>
                 <RadioButton x:Name="NavSettings" Style="{StaticResource NavButton}" Tag="&#xE713;" Content="Settings" Checked="Nav_Checked"/>
             </StackPanel>
-            <TextBlock x:Name="VersionText" Grid.Row="1" Text="v2.0" Foreground="{StaticResource TextFaint}" FontSize="11"
+            <TextBlock x:Name="VersionText" Grid.Row="1" Text="v2.0" Foreground="{DynamicResource TextFaint}" FontSize="11"
                        HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,16"/>
 
             <!-- ======================================================== title bar -->
             <Grid Grid.Column="1">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="28,4,0,0">
                     <TextBlock Text="Chest Tracker" FontSize="13" FontWeight="SemiBold"/>
-                    <TextBlock Text="  ·  Pirate Token odds" FontSize="13" Foreground="{StaticResource TextFaint}"/>
+                    <TextBlock Text="  ·  Pirate Token odds" FontSize="13" Foreground="{DynamicResource TextFaint}"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
                             WindowChrome.IsHitTestVisibleInChrome="True">
@@ -64,10 +67,10 @@
                                            Style="{StaticResource Hint}" FontSize="13" Margin="0,5,0,0"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                <Border CornerRadius="18" Padding="14,8" Background="{StaticResource Surface}"
-                                        BorderBrush="{StaticResource Line}" BorderThickness="1" Margin="0,0,12,0">
+                                <Border CornerRadius="18" Padding="14,8" Background="{DynamicResource Surface}"
+                                        BorderBrush="{DynamicResource Line}" BorderThickness="1" Margin="0,0,12,0">
                                     <StackPanel Orientation="Horizontal">
-                                        <Ellipse x:Name="StatusDot" Width="9" Height="9" Fill="{StaticResource TextFaint}" VerticalAlignment="Center"/>
+                                        <Ellipse x:Name="StatusDot" Width="9" Height="9" Fill="{DynamicResource TextFaint}" VerticalAlignment="Center"/>
                                         <TextBlock x:Name="StatusText" Text="Not tracking" Margin="9,0,0,0" FontSize="12.5" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
@@ -114,12 +117,13 @@
                                 <Grid>
                                     <StackPanel>
                                         <StackPanel Orientation="Horizontal">
-                                            <Image Source="{StaticResource ChestIcon}" Width="16" Height="16"/>
+                                            <Image Source="{DynamicResource ChestIcon}" Width="16" Height="16"/>
                                             <TextBlock Text="CHESTS OPENED" Style="{StaticResource Label}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                                         </StackPanel>
                                         <TextBlock x:Name="CountText" Text="0" FontSize="84" FontWeight="Bold" Margin="-3,2,0,0"/>
                                         <TextBlock x:Name="BreakdownText" Text="0 normal · 0 in Treasure Hours" Style="{StaticResource Hint}" FontSize="13"/>
-                                        <TextBlock x:Name="TodayText" Text="0 today" Foreground="{StaticResource Gold}" FontSize="13" Margin="0,4,0,0"/>
+                                        <TextBlock x:Name="TodayText" Text="0 today" Foreground="{DynamicResource Gold}" FontSize="13" Margin="0,4,0,0"/>
+                                        <TextBlock x:Name="SessionHomeText" Text="" Style="{StaticResource Hint}" FontSize="13" Margin="0,4,0,0"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right">
                                         <Button Style="{StaticResource SecondaryButton}" Click="Undo_Click" ToolTip="Undo the last chest (F8)">
@@ -141,16 +145,16 @@
                             <Border Grid.Column="2" Style="{StaticResource Card}" Padding="26,22">
                                 <StackPanel>
                                     <TextBlock Text="PIRATE TOKEN CHANCE" Style="{StaticResource Label}"/>
-                                    <TextBlock x:Name="ChanceText" Text="0%" FontSize="46" FontWeight="Bold" Foreground="{StaticResource Gold}" Margin="-2,8,0,0"/>
+                                    <TextBlock x:Name="ChanceText" Text="0%" FontSize="46" FontWeight="Bold" Foreground="{DynamicResource Gold}" Margin="-2,8,0,0"/>
                                     <TextBlock x:Name="OneInText" Text="No chests yet" Style="{StaticResource Hint}" FontSize="13"/>
                                     <Grid Margin="0,26,0,8">
-                                        <TextBlock Text="Progress to a 50% chance" FontSize="12.5" Foreground="{StaticResource TextDim}"/>
+                                        <TextBlock Text="Progress to a 50% chance" FontSize="12.5" Foreground="{DynamicResource TextDim}"/>
                                         <TextBlock x:Name="ProgressText" Text="0%" FontSize="12.5" FontWeight="SemiBold" HorizontalAlignment="Right"/>
                                     </Grid>
                                     <ProgressBar x:Name="HalfProgress" Style="{StaticResource GoldProgress}" Maximum="1" Value="0"/>
                                     <TextBlock x:Name="RemainingText" Text="95,308 chests to go" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
                                     <TextBlock Text="It's luck, not a countdown: no number of chests guarantees the token."
-                                               Style="{StaticResource Hint}" FontSize="11.5" Foreground="{StaticResource TextFaint}" Margin="0,10,0,0" TextWrapping="Wrap"/>
+                                               Style="{StaticResource Hint}" FontSize="11.5" Foreground="{DynamicResource TextFaint}" Margin="0,10,0,0" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Border>
                         </Grid>
@@ -205,7 +209,7 @@
                                                  KeyDown="AlreadyOpenedBox_KeyDown" TextChanged="AlreadyOpenedBox_TextChanged"
                                                  ToolTip="Number of chests, e.g. 250"/>
                                         <TextBlock x:Name="AlreadyOpenedPlaceholder" Text="e.g. 250" IsHitTestVisible="False" FontSize="14"
-                                                   Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" Margin="13,0,0,0"/>
+                                                   Foreground="{DynamicResource TextFaint}" VerticalAlignment="Center" Margin="13,0,0,0"/>
                                         <Button x:Name="AlreadyOpenedButton" Grid.Column="1" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0"
                                                 Click="AddAlreadyOpened_Click" IsEnabled="False" Padding="16,9">
                                             <StackPanel Orientation="Horizontal">
@@ -240,12 +244,12 @@
                                                         <ColumnDefinition/>
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <Border Width="34" Height="34" CornerRadius="9" Background="{StaticResource Surface2}">
-                                                        <Image Source="{StaticResource ChestIcon}" Width="17" Height="17"/>
+                                                    <Border Width="34" Height="34" CornerRadius="9" Background="{DynamicResource Surface2}">
+                                                        <Image Source="{DynamicResource ChestIcon}" Width="17" Height="17"/>
                                                     </Border>
                                                     <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"/>
-                                                        <TextBlock Text="{Binding Detail}" FontSize="11.5" Foreground="{StaticResource TextDim}" Margin="0,2,0,0"/>
+                                                        <TextBlock Text="{Binding Detail}" FontSize="11.5" Foreground="{DynamicResource TextDim}" Margin="0,2,0,0"/>
                                                     </StackPanel>
                                                     <Border Grid.Column="2" CornerRadius="6" Padding="7,2" Background="{StaticResource OrangeSoft}"
                                                             Visibility="{Binding TreasureVisibility}" VerticalAlignment="Center">
@@ -282,7 +286,7 @@
                             <Border Style="{StaticResource Card}" Margin="4,0,4,0">
                                 <StackPanel>
                                     <TextBlock Text="CHESTS PER MATCH" Style="{StaticResource Label}"/>
-                                    <TextBlock x:Name="StatPerMatch" Text="0" FontSize="30" FontWeight="Bold" Foreground="{StaticResource Gold}" Margin="0,6,0,0"/>
+                                    <TextBlock x:Name="StatPerMatch" Text="0" FontSize="30" FontWeight="Bold" Foreground="{DynamicResource Gold}" Margin="0,6,0,0"/>
                                     <TextBlock Text="on average" Style="{StaticResource Hint}"/>
                                 </StackPanel>
                             </Border>
@@ -317,11 +321,69 @@
                                                     <RowDefinition/>
                                                     <RowDefinition Height="Auto"/>
                                                 </Grid.RowDefinitions>
-                                                <TextBlock Text="{Binding Value}" FontSize="10.5" Foreground="{StaticResource TextDim}" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Value}" FontSize="10.5" Foreground="{DynamicResource TextDim}" HorizontalAlignment="Center"/>
                                                 <Border Grid.Row="1" VerticalAlignment="Bottom" Height="{Binding BarHeight}" CornerRadius="4,4,0,0"
                                                         Background="{Binding Brush}" Margin="2,2,2,0"/>
-                                                <TextBlock Grid.Row="2" Text="{Binding Label}" FontSize="10.5" Foreground="{StaticResource TextFaint}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                                <TextBlock Grid.Row="2" Text="{Binding Label}" FontSize="10.5" Foreground="{DynamicResource TextFaint}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                                             </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                            <StackPanel>
+                                <TextBlock Text="How fast you find chests" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="From your match replays. &quot;Landing&quot; is your first chest of the match."
+                                           Style="{StaticResource Hint}" Margin="0,4,0,14"/>
+                                <UniformGrid Columns="3" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <TextBlock Text="FIRST CHEST" Style="{StaticResource Label}"/>
+                                        <TextBlock x:Name="EffFirst" Text="–" FontSize="24" FontWeight="Bold" Margin="0,4,0,0"/>
+                                        <TextBlock Text="after the match starts (warm-up and bus included)" Style="{StaticResource Hint}" FontSize="11" TextWrapping="Wrap" Margin="0,0,12,0"/>
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="FIRST 5 MINUTES" Style="{StaticResource Label}"/>
+                                        <TextBlock x:Name="EffFive" Text="–" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource Gold}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="chests in the 5 minutes after landing" Style="{StaticResource Hint}" FontSize="11" TextWrapping="Wrap" Margin="0,0,12,0"/>
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="CHESTS PER MINUTE" Style="{StaticResource Label}"/>
+                                        <TextBlock x:Name="EffRate" Text="–" FontSize="24" FontWeight="Bold" Margin="0,4,0,0"/>
+                                        <TextBlock Text="from your first chest to your last" Style="{StaticResource Hint}" FontSize="11" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </UniformGrid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition/>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="110"/>
+                                        <ColumnDefinition Width="110"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="LANDING SPOT" Style="{StaticResource Label}"/>
+                                    <TextBlock Grid.Column="1" Text="MATCHES" Style="{StaticResource Label}"/>
+                                    <TextBlock Grid.Column="2" Text="FIRST 5 MIN" Style="{StaticResource Label}"/>
+                                    <TextBlock Grid.Column="3" Text="PER MINUTE" Style="{StaticResource Label}"/>
+                                </Grid>
+                                <TextBlock x:Name="EffEmpty" Text="Shows up after a few matches (place names need the internet once)." Style="{StaticResource Hint}"/>
+                                <ItemsControl x:Name="EffList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="0,8">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition/>
+                                                        <ColumnDefinition Width="80"/>
+                                                        <ColumnDefinition Width="110"/>
+                                                        <ColumnDefinition Width="110"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12.5"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Matches}" FontSize="12.5" Foreground="{DynamicResource TextDim}"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Five}" FontSize="12.5"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding Rate}" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource Gold}"/>
+                                                </Grid>
+                                            </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -363,7 +425,7 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Grid Margin="0,0,0,10">
-                                                    <TextBlock Text="{Binding Name}" FontSize="12.5" Foreground="{StaticResource TextDim}"/>
+                                                    <TextBlock Text="{Binding Name}" FontSize="12.5" Foreground="{DynamicResource TextDim}"/>
                                                     <TextBlock Text="{Binding Count}" FontSize="12.5" FontWeight="SemiBold" HorizontalAlignment="Right"/>
                                                 </Grid>
                                             </DataTemplate>
@@ -424,13 +486,13 @@
                                     <ItemsControl x:Name="SpotList">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,9">
+                                                <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="0,9">
                                                     <Grid>
                                                         <StackPanel Margin="0,0,50,0">
                                                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12.5" TextWrapping="Wrap"/>
                                                             <TextBlock Text="{Binding Detail}" Style="{StaticResource Hint}" FontSize="11.5" Margin="0,2,0,0"/>
                                                         </StackPanel>
-                                                        <TextBlock Text="{Binding Avg}" Foreground="{StaticResource Gold}" FontWeight="Bold" FontSize="16"
+                                                        <TextBlock Text="{Binding Avg}" Foreground="{DynamicResource Gold}" FontWeight="Bold" FontSize="16"
                                                                    HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                                     </Grid>
                                                 </Border>
@@ -443,7 +505,7 @@
                                 <StackPanel>
                                     <TextBlock Text="Key" Style="{StaticResource CardTitle}" Margin="0,0,0,10"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                        <Ellipse Width="10" Height="10" Fill="{StaticResource Gold}" Stroke="#AA000000" StrokeThickness="1"/>
+                                        <Ellipse Width="10" Height="10" Fill="{DynamicResource Gold}" Stroke="#AA000000" StrokeThickness="1"/>
                                         <TextBlock Text="Chest you opened" Style="{StaticResource Hint}" Margin="8,0,0,0"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
@@ -455,7 +517,7 @@
                                         <TextBlock Text="Sprite chest" Style="{StaticResource Hint}" Margin="8,0,0,0"/>
                                     </StackPanel>
                                     <TextBlock x:Name="MapCountText" Style="{StaticResource Hint}" Margin="0,12,0,0" TextWrapping="Wrap"/>
-                                    <TextBlock Text="Map picture and place names: fortnite-api.com." Style="{StaticResource Hint}" FontSize="11" Foreground="{StaticResource TextFaint}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                                    <TextBlock Text="Map picture and place names: fortnite-api.com." Style="{StaticResource Hint}" FontSize="11" Foreground="{DynamicResource TextFaint}" Margin="0,8,0,0" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -473,7 +535,7 @@
                             <Grid>
                                 <StackPanel>
                                     <TextBlock x:Name="NextHourLabel" Text="NEXT TREASURE HOUR" Style="{StaticResource Label}"/>
-                                    <TextBlock x:Name="NextHourCountdown" Text="--" FontSize="44" FontWeight="Bold" Foreground="{StaticResource Gold}" Margin="-2,6,0,0"/>
+                                    <TextBlock x:Name="NextHourCountdown" Text="--" FontSize="44" FontWeight="Bold" Foreground="{DynamicResource Gold}" Margin="-2,6,0,0"/>
                                     <TextBlock x:Name="NextHourWhen" Text="" Style="{StaticResource Hint}" FontSize="13"/>
                                 </StackPanel>
                                 <StackPanel x:Name="NextHourBoosts" HorizontalAlignment="Right" VerticalAlignment="Center"/>
@@ -505,7 +567,7 @@
                                     <ItemsControl x:Name="PrizeList">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,9">
+                                                <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="0,9">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition/>
@@ -517,7 +579,7 @@
                                                             <TextBlock Text="{Binding Detail}" Style="{StaticResource Hint}" FontSize="11"/>
                                                         </StackPanel>
                                                         <TextBlock Grid.Column="1" Text="{Binding OneIn}" FontSize="12.5" VerticalAlignment="Center"/>
-                                                        <TextBlock Grid.Column="2" Text="{Binding Chance}" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource Gold}"
+                                                        <TextBlock Grid.Column="2" Text="{Binding Chance}" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource Gold}"
                                                                    HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                                     </Grid>
                                                 </Border>
@@ -536,7 +598,7 @@
                                     <ItemsControl x:Name="HourList">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,8" Opacity="{Binding Fade}">
+                                                <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="0,8" Opacity="{Binding Fade}">
                                                     <Grid>
                                                         <StackPanel>
                                                             <TextBlock Text="{Binding When}" FontWeight="SemiBold" FontSize="12.5"/>
@@ -563,12 +625,12 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="{StaticResource Surface2}" CornerRadius="12" Padding="12" Margin="0,0,8,0"
+                                            <Border Background="{DynamicResource Surface2}" CornerRadius="12" Padding="12" Margin="0,0,8,0"
                                                     BorderBrush="{Binding Edge}" BorderThickness="1" Opacity="{Binding Fade}">
                                                 <StackPanel>
                                                     <TextBlock Text="{Binding Header}" Style="{StaticResource Label}" FontSize="10"/>
                                                     <TextBlock Text="{Binding Title}" FontWeight="Bold" FontSize="13" Margin="0,4,0,2" TextWrapping="Wrap"/>
-                                                    <TextBlock Text="{Binding State}" Foreground="{StaticResource Gold}" FontSize="11" Margin="0,0,0,8"/>
+                                                    <TextBlock Text="{Binding State}" Foreground="{DynamicResource Gold}" FontSize="11" Margin="0,0,0,8"/>
                                                     <TextBlock Text="{Binding Prizes}" Style="{StaticResource Hint}" FontSize="11.5" TextWrapping="Wrap" LineHeight="17"/>
                                                 </StackPanel>
                                             </Border>
@@ -613,9 +675,273 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Grid Margin="0,0,16,8">
-                                                <TextBlock Text="{Binding Name}" FontSize="12.5" Foreground="{StaticResource TextDim}"/>
+                                                <TextBlock Text="{Binding Name}" FontSize="12.5" Foreground="{DynamicResource TextDim}"/>
                                                 <TextBlock Text="{Binding Status}" FontSize="12.5" FontWeight="SemiBold" HorizontalAlignment="Right"/>
                                             </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ==================================================== MATCHES -->
+                <Grid x:Name="MatchesPage" Visibility="Collapsed" Margin="28,6,28,24">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="330"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.ColumnSpan="3" Margin="0,0,0,16">
+                        <TextBlock Text="Match history" Style="{StaticResource PageTitle}"/>
+                        <TextBlock Text="Pick a match to see your route: its chests on the map, numbered in the order you opened them."
+                                   Style="{StaticResource Hint}" FontSize="13" Margin="0,5,0,0"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="1" Style="{StaticResource Card}" Padding="10">
+                        <Grid>
+                            <TextBlock x:Name="MatchHistoryEmpty" Text="Matches show up here after they end." Style="{StaticResource Hint}"
+                                       Margin="10" TextWrapping="Wrap" Visibility="Collapsed"/>
+                            <ListBox x:Name="MatchHistoryList" Background="Transparent" BorderThickness="0"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="MatchHistory_SelectionChanged">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Cursor" Value="Hand"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ListBoxItem">
+                                                    <Border x:Name="bd" CornerRadius="10" Padding="12,9" Margin="0,0,0,4" Background="Transparent">
+                                                        <ContentPresenter/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="bd" Property="Background" Value="#0FFFFFFF"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsSelected" Value="True">
+                                                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Surface2}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <StackPanel Margin="0,0,56,0">
+                                                <TextBlock Text="{Binding When}" FontWeight="SemiBold" FontSize="12.5" Foreground="{DynamicResource Text}"/>
+                                                <TextBlock Text="{Binding Detail}" FontSize="11.5" Foreground="{DynamicResource TextDim}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Chests}" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource Gold}" HorizontalAlignment="Right"/>
+                                                <TextBlock Text="chests" FontSize="10.5" Foreground="{DynamicResource TextFaint}" HorizontalAlignment="Right"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="1" Grid.Column="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+                        <Border Style="{StaticResource Card}" Padding="16,12" Margin="0,0,0,12">
+                            <UniformGrid Columns="4">
+                                <StackPanel>
+                                    <TextBlock Text="PLACED" Style="{StaticResource Label}"/>
+                                    <TextBlock x:Name="MatchPlaced" Text="–" FontSize="20" FontWeight="Bold" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="ELIMINATIONS" Style="{StaticResource Label}"/>
+                                    <TextBlock x:Name="MatchElims" Text="–" FontSize="20" FontWeight="Bold" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="CHESTS" Style="{StaticResource Label}"/>
+                                    <TextBlock x:Name="MatchChests" Text="–" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource Gold}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="LENGTH" Style="{StaticResource Label}"/>
+                                    <TextBlock x:Name="MatchLength" Text="–" FontSize="20" FontWeight="Bold" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </UniformGrid>
+                        </Border>
+                        <Border Grid.Row="1" Style="{StaticResource Card}" Padding="8" ClipToBounds="True">
+                            <Grid>
+                                <Viewbox Stretch="Uniform">
+                                    <Grid Width="1000" Height="1000">
+                                        <Image x:Name="RouteImage" Stretch="Fill"/>
+                                        <Canvas x:Name="RouteCanvas"/>
+                                    </Grid>
+                                </Viewbox>
+                                <TextBlock x:Name="RouteMessage" Style="{StaticResource Hint}" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           TextAlignment="Center" TextWrapping="Wrap" MaxWidth="360" Visibility="Collapsed"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <!-- ==================================================== FINDS -->
+                <ScrollViewer x:Name="FindsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="28,6,28,28">
+                        <TextBlock Text="Your finds" Style="{StaticResource PageTitle}"/>
+                        <TextBlock Text="Treasure Hunters prizes you've found. The tracker adds them from your replays; add anything it missed by hand."
+                                   Style="{StaticResource Hint}" FontSize="13" Margin="0,5,0,20"/>
+
+                        <UniformGrid Columns="3" Margin="0,0,0,16">
+                            <Border Style="{StaticResource Card}" Margin="0,0,8,0">
+                                <StackPanel>
+                                    <TextBlock Text="FOUND" Style="{StaticResource Label}"/>
+                                    <TextBlock x:Name="FindsTotal" Text="0" FontSize="30" FontWeight="Bold" Margin="0,6,0,0"/>
+                                    <TextBlock x:Name="FindsTotalHint" Text="" Style="{StaticResource Hint}"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Margin="4,0,4,0">
+                                <StackPanel>
+                                    <TextBlock Text="COSMETICS" Style="{StaticResource Label}"/>
+                                    <TextBlock x:Name="FindsCosmetics" Text="0" FontSize="30" FontWeight="Bold" Foreground="{DynamicResource Gold}" Margin="0,6,0,0"/>
+                                    <TextBlock Text="outfits, pickaxes, decals, tracks…" Style="{StaticResource Hint}"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Margin="8,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="PIRATE SHOP ACCESS" Style="{StaticResource Label}"/>
+                                    <TextBlock x:Name="FindsToken" Text="Not yet" FontSize="30" FontWeight="Bold" Margin="0,6,0,0"/>
+                                    <TextBlock x:Name="FindsTokenHint" Text="keep going" Style="{StaticResource Hint}"/>
+                                </StackPanel>
+                            </Border>
+                        </UniformGrid>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Everything you've found" Style="{StaticResource CardTitle}" Margin="0,0,0,12"/>
+                                <TextBlock x:Name="FindsEmpty" Text="Nothing yet. Prizes you find show up here after the match." Style="{StaticResource Hint}"/>
+                                <ItemsControl x:Name="FindsList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="0,10">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource Surface2}">
+                                                        <TextBlock Text="{Binding Icon}" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="{DynamicResource Gold}"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+                                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Hint}" FontSize="11.5" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Button Style="{StaticResource SecondaryButton}" Content="Change" Tag="{Binding Id}" Click="FindEdit_Click" Padding="12,6" Margin="0,0,6,0"/>
+                                                        <Button Style="{StaticResource SecondaryButton}" Content="Remove" Tag="{Binding Id}" Click="FindRemove_Click" Padding="12,6"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                            <StackPanel>
+                                <TextBlock x:Name="FindFormTitle" Text="Add something the tracker didn't pick up" Style="{StaticResource CardTitle}"/>
+                                <TextBlock Text="For prizes you found before you had Chest Tracker (or in a match whose replay is gone). Pick it from the list, or choose &quot;Something else&quot; and type its name."
+                                           Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,12"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="1.4*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="WHAT DID YOU FIND?" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                                        <ComboBox x:Name="FindPick" SelectionChanged="FindPick_SelectionChanged" Height="38" FontSize="13"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="WHEN" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                                        <ComboBox x:Name="FindWhen" Height="38" FontSize="13"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Bottom">
+                                        <Button x:Name="FindCancel" Style="{StaticResource SecondaryButton}" Content="Cancel" Click="FindCancel_Click" Margin="0,0,8,0" Visibility="Collapsed"/>
+                                        <Button x:Name="FindAddButton" Style="{StaticResource PrimaryButton}" Content="Add" Click="FindAdd_Click" Padding="18,9"/>
+                                    </StackPanel>
+                                </Grid>
+                                <StackPanel x:Name="FindCustomRow" Margin="0,10,0,0" Visibility="Collapsed">
+                                    <TextBlock Text="NAME" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                                    <TextBox x:Name="FindCustomName" Style="{StaticResource Input}" MaxLength="80"/>
+                                </StackPanel>
+                                <TextBlock x:Name="FindResult" Style="{StaticResource Hint}" Margin="0,8,0,0" Visibility="Collapsed" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ==================================================== SQUAD -->
+                <ScrollViewer x:Name="SquadPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="28,6,28,28">
+                        <TextBlock Text="Squad" Style="{StaticResource PageTitle}"/>
+                        <TextBlock Text="Everyone you've played with, how many chests they opened and what they found."
+                                   Style="{StaticResource Hint}" FontSize="13" Margin="0,5,0,20"/>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <CheckBox x:Name="SquadTrackSwitch" Style="{StaticResource Switch}" Click="SquadTrackSwitch_Click">
+                                    <StackPanel>
+                                        <TextBlock Text="Track my squad" FontWeight="SemiBold"/>
+                                        <TextBlock Text="Remembers each teammate's name, their chests and any prize they found, from your match replays. Matches Fortnite still has replays of are added too."
+                                                   Style="{StaticResource Hint}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <Border Style="{StaticResource Divider}"/>
+                                <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" FontSize="12"
+                                           Text="Your replay only sees what happens near you, so a teammate who drops somewhere else won't have all their chests here. Their real totals are usually higher. Squad totals never change your own count or odds."/>
+                                <TextBlock x:Name="SquadStatus" Style="{StaticResource Hint}" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="Collapsed"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,12">
+                                    <TextBlock Text="Teammates" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
+                                    <Button Style="{StaticResource SecondaryButton}" Content="Clear list" HorizontalAlignment="Right" Click="SquadClear_Click" Padding="12,6"/>
+                                </Grid>
+                                <TextBlock x:Name="SquadEmpty" Text="Turn on squad tracking and play with friends. They'll show up here." Style="{StaticResource Hint}" TextWrapping="Wrap"/>
+                                <ItemsControl x:Name="SquadList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="0,11">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13.5"/>
+                                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Hint}" FontSize="11.5" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding Kinds}" Style="{StaticResource Hint}" FontSize="11.5" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding Finds}" Foreground="{DynamicResource Gold}" FontSize="11.5" Margin="0,3,0,0" TextWrapping="Wrap"
+                                                                   Visibility="{Binding FindsVisibility}"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0">
+                                                        <TextBlock Text="{Binding Chests}" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource Gold}" HorizontalAlignment="Right"/>
+                                                        <TextBlock Text="chests seen" FontSize="10.5" Foreground="{DynamicResource TextFaint}" HorizontalAlignment="Right"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -634,7 +960,7 @@
                         <Border CornerRadius="14" Padding="18,14" Margin="0,0,0,16" Background="#14FFCD50" BorderBrush="#40FFCD50" BorderThickness="1">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE946;" Foreground="{StaticResource Gold}" VerticalAlignment="Center"/>
+                                    <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE946;" Foreground="{DynamicResource Gold}" VerticalAlignment="Center"/>
                                     <TextBlock Text="Opening more chests never guarantees the token" FontWeight="SemiBold" Margin="10,0,0,0"/>
                                 </StackPanel>
                                 <TextBlock x:Name="GuaranteeText" Style="{StaticResource Hint}" FontSize="12.5" TextWrapping="Wrap" Margin="0,6,0,0" LineHeight="19"/>
@@ -677,7 +1003,7 @@
                             <Grid>
                                 <StackPanel>
                                     <TextBlock Text="CHANCE OF AT LEAST ONE TOKEN" Style="{StaticResource Label}"/>
-                                    <TextBlock x:Name="CalcChance" Text="0%" FontSize="52" FontWeight="Bold" Foreground="{StaticResource Gold}" Margin="-2,6,0,0"/>
+                                    <TextBlock x:Name="CalcChance" Text="0%" FontSize="52" FontWeight="Bold" Foreground="{DynamicResource Gold}" Margin="-2,6,0,0"/>
                                     <TextBlock x:Name="CalcOneIn" Text="" Style="{StaticResource Hint}" FontSize="13"/>
                                 </StackPanel>
                                 <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -712,7 +1038,7 @@
                                 <ItemsControl x:Name="MilestoneList">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,11">
+                                            <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="0,11">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="1*"/>
@@ -720,10 +1046,10 @@
                                                         <ColumnDefinition Width="1.4*"/>
                                                         <ColumnDefinition Width="1.2*"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding Target}" FontWeight="SemiBold" Foreground="{StaticResource Gold}"/>
+                                                    <TextBlock Text="{Binding Target}" FontWeight="SemiBold" Foreground="{DynamicResource Gold}"/>
                                                     <TextBlock Grid.Column="1" Text="{Binding Normal}"/>
                                                     <TextBlock Grid.Column="2" Text="{Binding Treasure}"/>
-                                                    <TextBlock Grid.Column="3" Text="{Binding Matches}" Foreground="{StaticResource TextDim}"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding Matches}" Foreground="{DynamicResource TextDim}"/>
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
@@ -809,7 +1135,7 @@
                                                     <ColumnDefinition Width="150"/>
                                                     <ColumnDefinition/>
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding When}" Foreground="{StaticResource TextDim}" FontSize="12"/>
+                                                <TextBlock Text="{Binding When}" Foreground="{DynamicResource TextDim}" FontSize="12"/>
                                                 <TextBlock Grid.Column="1" Text="{Binding What}" FontSize="12" TextWrapping="Wrap"/>
                                             </Grid>
                                         </DataTemplate>
@@ -861,6 +1187,105 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- background, reminders, squad -->
+                        <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Background &amp; reminders" Style="{StaticResource CardTitle}" Margin="0,0,0,16"/>
+                                <CheckBox x:Name="TraySwitch" Style="{StaticResource Switch}" Click="TraySwitch_Click">
+                                    <StackPanel>
+                                        <TextBlock Text="Keep running in the tray" FontWeight="SemiBold"/>
+                                        <TextBlock Text="Closing the window leaves Chest Tracker counting in the system tray (by the clock). Click the chest icon to open it, right-click it to quit."
+                                                   Style="{StaticResource Hint}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <Border Style="{StaticResource Divider}"/>
+                                <CheckBox x:Name="StartupSwitch" Style="{StaticResource Switch}" Click="StartupSwitch_Click">
+                                    <StackPanel>
+                                        <TextBlock Text="Start with Windows" FontWeight="SemiBold"/>
+                                        <TextBlock Text="Opens quietly in the tray when you turn on your PC, so you never forget to start it."
+                                                   Style="{StaticResource Hint}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <Border Style="{StaticResource Divider}"/>
+                                <CheckBox x:Name="RemindersSwitch" Style="{StaticResource Switch}" Click="RemindersSwitch_Click">
+                                    <StackPanel>
+                                        <TextBlock Text="Treasure Hour reminders" FontWeight="SemiBold"/>
+                                        <TextBlock Text="A Windows notification 10 minutes before each Treasure Hour, and when it starts."
+                                                   Style="{StaticResource Hint}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <Border Style="{StaticResource Divider}"/>
+                                <CheckBox x:Name="SquadTabSwitch" Style="{StaticResource Switch}" Click="SquadTabSwitch_Click">
+                                    <StackPanel>
+                                        <TextBlock Text="Squad totals" FontWeight="SemiBold"/>
+                                        <TextBlock Text="Adds a Squad tab, where you can turn on tracking of your teammates' chests and finds."
+                                                   Style="{StaticResource Hint}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </CheckBox>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- overlay look -->
+                        <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Overlay look" Style="{StaticResource CardTitle}" Margin="0,0,0,16"/>
+                                <Grid>
+                                    <StackPanel>
+                                        <TextBlock Text="Size" FontWeight="SemiBold"/>
+                                        <TextBlock Text="How big the overlay is on screen." Style="{StaticResource Hint}" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <Border Style="{StaticResource SegmentHost}" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <StackPanel x:Name="SizeSegments" Orientation="Horizontal">
+                                            <RadioButton Style="{StaticResource Segment}" GroupName="ovsize" Content="70%" Tag="0.7" Checked="OverlaySize_Checked"/>
+                                            <RadioButton Style="{StaticResource Segment}" GroupName="ovsize" Content="85%" Tag="0.85" Checked="OverlaySize_Checked"/>
+                                            <RadioButton Style="{StaticResource Segment}" GroupName="ovsize" Content="100%" Tag="1" Checked="OverlaySize_Checked"/>
+                                            <RadioButton Style="{StaticResource Segment}" GroupName="ovsize" Content="120%" Tag="1.2" Checked="OverlaySize_Checked"/>
+                                            <RadioButton Style="{StaticResource Segment}" GroupName="ovsize" Content="140%" Tag="1.4" Checked="OverlaySize_Checked"/>
+                                            <RadioButton Style="{StaticResource Segment}" GroupName="ovsize" Content="170%" Tag="1.7" Checked="OverlaySize_Checked"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                                <Border Style="{StaticResource Divider}"/>
+                                <CheckBox x:Name="OvCompact" Style="{StaticResource Switch}" Click="OverlayLook_Click">
+                                    <StackPanel>
+                                        <TextBlock Text="Compact" FontWeight="SemiBold"/>
+                                        <TextBlock Text="A smaller, narrower panel with less text." Style="{StaticResource Hint}" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <Border Style="{StaticResource Divider}"/>
+                                <TextBlock Text="SHOW ON THE OVERLAY" Style="{StaticResource Label}" Margin="0,0,0,10"/>
+                                <UniformGrid Columns="2">
+                                    <CheckBox x:Name="OvCount" Style="{StaticResource Switch}" Click="OverlayLook_Click" Margin="0,0,16,10"><TextBlock Text="Chest count" VerticalAlignment="Center"/></CheckBox>
+                                    <CheckBox x:Name="OvChance" Style="{StaticResource Switch}" Click="OverlayLook_Click" Margin="0,0,0,10"><TextBlock Text="Token chance" VerticalAlignment="Center"/></CheckBox>
+                                    <CheckBox x:Name="OvOneIn" Style="{StaticResource Switch}" Click="OverlayLook_Click" Margin="0,0,16,10"><TextBlock Text="&quot;1 in …&quot; under the chance" VerticalAlignment="Center"/></CheckBox>
+                                    <CheckBox x:Name="OvSession" Style="{StaticResource Switch}" Click="OverlayLook_Click" Margin="0,0,0,10"><TextBlock Text="This session" VerticalAlignment="Center"/></CheckBox>
+                                    <CheckBox x:Name="OvToday" Style="{StaticResource Switch}" Click="OverlayLook_Click" Margin="0,0,16,10"><TextBlock Text="Today's chests" VerticalAlignment="Center"/></CheckBox>
+                                    <CheckBox x:Name="OvNextHour" Style="{StaticResource Switch}" Click="OverlayLook_Click" Margin="0,0,0,10"><TextBlock Text="Next Treasure Hour" VerticalAlignment="Center"/></CheckBox>
+                                    <CheckBox x:Name="OvStatus" Style="{StaticResource Switch}" Click="OverlayLook_Click" Margin="0,0,16,10"><TextBlock Text="Tracking status line" VerticalAlignment="Center"/></CheckBox>
+                                    <CheckBox x:Name="OvTreasure" Style="{StaticResource Switch}" Click="OverlayLook_Click" Margin="0,0,0,10"><TextBlock Text="Treasure Hours badge" VerticalAlignment="Center"/></CheckBox>
+                                    <CheckBox x:Name="OvHint" Style="{StaticResource Switch}" Click="OverlayLook_Click" Margin="0,0,16,10"><TextBlock Text="Move/lock hint" VerticalAlignment="Center"/></CheckBox>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- colours -->
+                        <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,14">
+                                    <TextBlock Text="Colours" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
+                                    <Button Style="{StaticResource SecondaryButton}" Content="Back to the original colours" HorizontalAlignment="Right" Click="ColoursReset_Click" Padding="12,6"/>
+                                </Grid>
+                                <TextBlock Text="ACCENT" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                                <WrapPanel x:Name="AccentSwatches" Margin="0,0,0,14"/>
+                                <TextBlock Text="BACKGROUND" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                                <WrapPanel x:Name="BackgroundSwatches" Margin="0,0,0,14"/>
+                                <TextBlock Text="EXACT COLOURS (#RRGGBB)" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                                <UniformGrid x:Name="ColourInputs" Columns="3"/>
+                                <TextBlock x:Name="ColourResult" Style="{StaticResource Hint}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                           Text="Changes show straight away and are saved. Type a colour code and press Enter."/>
+                            </StackPanel>
+                        </Border>
+
                         <!-- data -->
                         <Border Style="{StaticResource Card}" Margin="0,16,0,0">
                             <StackPanel>
@@ -882,7 +1307,7 @@
                         <Border Style="{StaticResource Card}" Margin="0,16,0,0">
                             <Grid>
                                 <StackPanel Orientation="Horizontal">
-                                    <Image Source="{StaticResource ChestIcon}" Width="36" Height="36" VerticalAlignment="Center"/>
+                                    <Image Source="{DynamicResource ChestIcon}" Width="36" Height="36" VerticalAlignment="Center"/>
                                     <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
                                         <TextBlock x:Name="AboutTitle" Text="Chest Tracker 2.0" FontWeight="SemiBold" FontSize="14"/>
                                         <TextBlock Text="Coded with Claude Opus 5.5 · Open source (MIT) · Not affiliated with Epic Games" Style="{StaticResource Hint}" Margin="0,3,0,0"/>

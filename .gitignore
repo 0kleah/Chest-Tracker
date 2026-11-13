@@ -34,3 +34,7 @@ map_places.json
 
 # backups the app or an update makes of your data
 *.before-*.json
+finds.json
+finds.json.tmp
+squad.json
+squad.json.tmp

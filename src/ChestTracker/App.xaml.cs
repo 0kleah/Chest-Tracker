@@ -24,10 +24,12 @@ public partial class App : Application
 
         DispatcherUnhandledException += OnUnhandled;
         State = new AppState();
+        ThemeManager.Apply(State.Settings);   // your colours, before any window is made
         State.Tracker.StartInputPolling();
 
         var main = new MainWindow();
         MainWindow = main;
+        if (e.Args.Contains("--tray")) main.StartHidden();   // started with Windows: stay in the tray
         main.Show();
     }
 

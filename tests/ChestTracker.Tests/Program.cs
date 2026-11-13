@@ -21,6 +21,14 @@ if (args.Length >= 2 && args[0] == "--replays")
             if (info is not { Complete: true }) { Console.WriteLine($"{Path.GetFileName(f)}: not finished"); continue; }
             var r = ReplayChests.Analyze(f);
             Console.WriteLine($"{Path.GetFileName(f)} {sw.Elapsed.TotalSeconds:0.0}s: {(r.Counts ? $"{r.Record.Chests.Count} chests ({r.Opened} opened, {r.Broken} broken), {r.Record.AmmoBoxesOpened} ammo" : "not counted: " + r.WhyNot)}");
+            if (args.Length >= 3 && args[2] == "--finds")
+            {
+                var rec = r.Record;
+                Console.WriteLine($"    placement {rec.Placement}/{rec.TotalPlayers} elims {rec.Eliminations} playlist {rec.Playlist} length {rec.DurationSeconds}s");
+                foreach (var fd in rec.TreasureFinds) Console.WriteLine($"    FIND {fd.ObtainedAtSeconds}s {fd.Item} raw={fd.RawItem} id={fd.PrizeId} golden={fd.FromGoldenChest} src={fd.SourceBlueprint}");
+                foreach (var fd in rec.TeamTreasureFinds) Console.WriteLine($"    TEAMFIND {fd.ObtainedAtSeconds}s {fd.Item} raw={fd.RawItem} id={fd.PrizeId} by={fd.Teammate}");
+                foreach (var tm in rec.Teammates) Console.WriteLine($"    MATE {(tm.IsBot ? "(bot) " : "")}{tm.Name}: {tm.Chests.Count} chests ({tm.Chests.Count(c => c.Destroyed)} broken), {tm.AmmoBoxes} ammo");
+            }
             if (args.Length >= 3 && args[2] == "--where")
                 foreach (var ch in r.Record.Chests)
                     Console.WriteLine($"    {ch.TimeSeconds,7:0.0}s {(ch.Destroyed ? "broken" : "opened")} {ch.Blueprint} at {(ch.X is null ? "?" : $"{ch.X:0},{ch.Y:0}")}");
@@ -192,6 +200,64 @@ var stat = Online.ParseStatus("""
 """, DateTime.UtcNow);
 Check("status: Fortnite parts only, in plain words", stat is { Overall: "Working", Parts.Count: 2 } && stat.Parts[1].Status == "Partly down" && stat.Notices.Count == 1,
       stat is null ? "null" : $"{stat.Overall} {stat.Parts.Count} {stat.Notices.Count}");
+
+
+Check("session: Fortnite's open time read from its log", FortniteLog.ParseOpenLine("\uFEFFLog file open, 11/12/26 20:39:28\r\nLogWindows: x") == new DateTime(2026, 11, 12, 20, 39, 28)
+      && FortniteLog.ParseOpenLine("something else") is null);
+
+// ------------------------------------------------------------------ v3.2: finds, squad, efficiency
+var frec = new ChestCounter.MatchRecord
+{
+    SessionId = "M1", MatchStartUtc = new DateTime(2026, 11, 1, 16, 10, 0, DateTimeKind.Utc),
+    TreasureFinds =
+    {
+        new ChestCounter.TreasureFind { RawItem = "DelilahPrize:dpid_item3", PrizeId = "DelilahPrize:dpid_item3", ObtainedAtSeconds = 88, SourceBlueprint = "Tiered_Chest_Athena_C", FromGoldenChest = true },
+        new ChestCounter.TreasureFind { RawItem = "WID_FlameCeleb_Consumable_S43", ObtainedAtSeconds = 578, SourceBlueprint = "B_TieredChest_Relics_C" },
+        new ChestCounter.TreasureFind { RawItem = "GA_TreasureHandler", PrizeId = "Unknown:x", ObtainedAtSeconds = 483, SourceBlueprint = "AlwaysSpawn_RareChest_C", SourceDestroyed = true },
+    },
+    TeamTreasureFinds = { new ChestCounter.TreasureFind { RawItem = "GA_TreasureHandler", ObtainedAtSeconds = 100, Teammate = "Monsterboy8754" } },
+    Teammates =
+    {
+        new ChestCounter.TeammateRecord { Name = "Monsterboy8754", EpicId = "abc", Chests = { new() { Blueprint = "Tiered_Chest_Athena_C" }, new() { Blueprint = "B_TieredChest_Relics_C", Destroyed = true } } },
+        new ChestCounter.TeammateRecord { Name = "Wir3D._", Chests = { } },
+    },
+};
+string fp = Path.Combine(Path.GetTempPath(), $"ct_test_finds_{Guid.NewGuid():N}.json");
+var fstore = new FindStore(fp);
+Check("finds: three prizes read from a replay", fstore.AddFromReplay(frec) == 3);
+Check("finds: the same replay adds nothing twice", fstore.AddFromReplay(frec) == 0);
+var fall = fstore.All();
+Check("finds: plain-English names", fall.Any(f => f.Name == "Golden Firework" && f.Category == "Gizmo" && !f.Unsure)
+      && fall.Any(f => f.Name == "Gold Mercedes-AMG G 63 Decal" && f.Category == "Car Decal")
+      && fall.Any(f => f.Name == "Treasure gizmo" && f.Unsure && f.Broken), string.Join(", ", fall.Select(f => f.Name)));
+fstore.Add(new FoundItem { Name = "Solid Gold Lil Uzi Vert (outfit)", Category = FindNames.CategoryOf("Solid Gold Lil Uzi Vert (outfit)"), Week = 2 });
+var gizmoId = fall.First(f => f.Name == "Treasure gizmo").Id;
+fstore.Update(gizmoId, "Lucky Locator", "Gizmo");
+var reloaded = new FindStore(fp).All();
+Check("finds: added by hand, changed and saved", reloaded.Count == 4 && reloaded.Any(f => f.Category == "Outfit" && f.Source == "manual")
+      && reloaded.Any(f => f.Name == "Lucky Locator" && !f.Unsure));
+Check("finds: the catalog lists the token, this event's prizes and gizmos", FindNames.Catalog(TreasureInfo.BuiltIn()) is var cat
+      && cat[0].Name == "Pirate Shop Access" && cat.Any(c => c.Week == 2 && c.Category == "Outfit") && cat.Count(c => c.Category == "Gizmo") == 5);
+File.Delete(fp);
+
+string sp = Path.Combine(Path.GetTempPath(), $"ct_test_squad_{Guid.NewGuid():N}.json");
+var squad = new SquadStore(sp);
+Check("squad: a match is added once", squad.AddMatch(frec) && !squad.AddMatch(frec));
+frec.SessionId = "M2";
+squad.AddMatch(frec);
+var mates = new SquadStore(sp).All();
+Check("squad: chests, types and finds per teammate", mates.Count == 2 && mates[0].Name == "Monsterboy8754" && mates[0].Matches == 2
+      && mates[0].Chests == 4 && mates[0].Broken == 2 && mates[0].Kinds["Sprite chest"] == 2 && mates[0].Finds.Count == 2,
+      mates.Count == 0 ? "none" : $"{mates[0].Name} {mates[0].Matches} {mates[0].Chests} {string.Join(",", mates[0].Kinds)} {mates[0].Finds.Count}");
+File.Delete(sp);
+
+var est = ChestStats.From(slog, now0);
+var starts = new Dictionary<string, DateTime> { ["A"] = now0.AddHours(-2).AddMinutes(-3), ["B"] = now0.AddHours(-1).AddMinutes(-2) };
+var eff = ChestStats.EfficiencyOf("All", est.Matches, starts);
+Check("efficiency: first chest 2:30 after the start on average", Math.Abs(eff.FirstChestSeconds - 150) < 1, $"{eff.FirstChestSeconds}");
+Check("efficiency: first 5 minutes and per minute", est.Matches.First(m => m.Match == "A").FirstFive == 9 && Math.Abs(est.Matches.First(m => m.Match == "A").PerMinute - 9 / 4.0) < 1e-9);
+var bySpot = ChestStats.EfficiencyBySpot(est.Matches, pois, starts);
+Check("efficiency: per landing spot", bySpot.Count == 2 && bySpot.Any(b => b.Name == "Arlong Park" && b.Matches == 2));
 
 // ------------------------------------------------------------------ real replays
 // Pass the fixtures folder. Expected numbers were checked against what happened in those matches:

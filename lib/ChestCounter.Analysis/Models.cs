@@ -49,6 +49,16 @@ public sealed class TreasureFind
     public string? Teammate { get; set; }
 }
 
+/// <summary>A teammate in the match and the chests the replay saw them open.</summary>
+public sealed class TeammateRecord
+{
+    public string Name { get; set; } = "";
+    public string? EpicId { get; set; }
+    public bool IsBot { get; set; }
+    public List<ChestRecord> Chests { get; set; } = new();
+    public int AmmoBoxes { get; set; }
+}
+
 public sealed class MatchRecord
 {
     public string SessionId { get; set; } = "";
@@ -78,6 +88,8 @@ public sealed class MatchRecord
     public List<TreasureFind> TreasureFinds { get; set; } = new();
     /// <summary>Treasures found by teammates (shared with the whole team). Not counted in the player's own totals.</summary>
     public List<TreasureFind> TeamTreasureFinds { get; set; } = new();
+    /// <summary>Teammates and the chests the replay saw them open (only near the recording player).</summary>
+    public List<TeammateRecord> Teammates { get; set; } = new();
 }
 
 public sealed class Config

@@ -16,12 +16,16 @@ public sealed class AppState
     public static string TreasureInfoPath { get; } = Path.Combine(DataDir, "treasure_info.json");
     public static string MapImagePath { get; } = Path.Combine(DataDir, "map.png");
     public static string MapPoisPath { get; } = Path.Combine(DataDir, "map_places.json");
+    public static string FindsPath { get; } = Path.Combine(DataDir, "finds.json");
+    public static string SquadPath { get; } = Path.Combine(DataDir, "squad.json");
 
     public AppSettings Settings { get; }
     public CountStore Store { get; }
     public ReplayLedger Ledger { get; }
     public Tracker Tracker { get; }
     public TreasureInfo Treasure { get; private set; }
+    public FindStore Finds { get; }
+    public SquadStore Squad { get; }
 
     // Treasure Hours switched on/off by hand (F9), and auto Treasure Hours switched off by hand, in local time.
     readonly object _treasureGate = new();
@@ -30,8 +34,9 @@ public sealed class AppState
     bool _manualOn;
 
     // worked out once per change, not on every overlay tick
-    volatile Totals _totals = new(0, 0, 0, 0, 0);
-    sealed record Totals(double Chance, double Expected, long EventChests, long Boosted, long Total);
+    volatile Totals _totals = new(0, 0, 0, 0, 0, 0, 0);
+    sealed record Totals(double Chance, double Expected, long EventChests, long Boosted, long Total, long SessionChests, int SessionMatches);
+    DateTime? _sessionStart;
 
     /// <summary>Raised (on any thread) when the count, Treasure Hours, or overlay lock request changes.</summary>
     public event Action? CountsChanged;
@@ -49,6 +54,8 @@ public sealed class AppState
         Settings = AppSettings.Load(SettingsPath);
         Store = new CountStore(CountsPath);
         Ledger = ReplayLedger.Load(LedgerPath);
+        Finds = new FindStore(FindsPath);
+        Squad = new SquadStore(SquadPath);
         Treasure = TreasureInfo.Load(TreasureInfoPath);
         Places = LoadPlaces();
         ApplyTreasureSchedule();
@@ -80,14 +87,28 @@ public sealed class AppState
     bool CountsForEvent(ChestLogEntry e) =>
         e.Source == "bulk" || e.When is not DateTime t || t.ToUniversalTime() >= Treasure.EventStartUtc;
 
+    // ------------------------------------------------------------------ session (since Fortnite was opened)
+
+    /// <summary>When Fortnite was last opened: it starts a fresh log file each time (no need to touch the game).</summary>
+    static DateTime? FortniteOpenedAt() => FortniteLog.OpenedAt();
+
+    /// <summary>Start of this session: when you last opened Fortnite (or today, if it hasn't run on this PC).</summary>
+    public DateTime SessionStart => _sessionStart ?? DateTime.Today;
+    public long SessionChests => _totals.SessionChests;
+    public int SessionMatches => _totals.SessionMatches;
+
     void Recalc()
     {
+        _sessionStart = FortniteOpenedAt();
         var log = Store.Snapshot();
         var groups = log.Where(CountsForEvent).GroupBy(e => BoostOf(e, "pirate"))
                         .Select(g => (Count: g.Sum(e => e.Chests), Boost: g.Key)).ToList();
         double oneIn = Treasure.PirateOneIn;
+        var start = SessionStart;
+        var session = log.Where(e => e.Source != "bulk" && e.When >= start).ToList();
         _totals = new Totals(Odds.ChanceAtLeastOne(groups, oneIn), Odds.Expected(groups, oneIn),
-                             groups.Sum(g => g.Count), groups.Where(g => g.Boost > 1).Sum(g => g.Count), log.Sum(e => e.Chests));
+                             groups.Sum(g => g.Count), groups.Where(g => g.Boost > 1).Sum(g => g.Count), log.Sum(e => e.Chests),
+                             session.Sum(e => e.Chests), session.Where(e => e.Match is not null).Select(e => e.Match).Distinct().Count());
     }
 
     /// <summary>Your chance of each prize: weekly prizes from this week's chests, the rest from this Treasure Hunt's.</summary>
@@ -248,8 +269,11 @@ public sealed class AppState
 
     /// <summary>Called every second: lets the window and overlay know when an automatic Treasure Hour starts or ends.</summary>
     bool _lastMode;
+    int _ticks;
     public void TickTreasure()
     {
+        // a new Fortnite session (game reopened) starts a new session count
+        if (++_ticks % 15 == 0 && FortniteOpenedAt() != _sessionStart) Changed();
         bool mode = TreasureMode;
         if (mode == _lastMode) return;
         _lastMode = mode;

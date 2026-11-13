@@ -30,6 +30,31 @@ public sealed class FortniteLog
 
     public FortniteLog(string? path = null) => _path = path ?? DefaultPath;
 
+    /// <summary>
+    /// When Fortnite was opened: the log's first line says so ("Log file open, 11/12/26 20:39:28", local time).
+    /// (The file's creation date can't be trusted: Windows keeps the old one when a file is replaced quickly.)
+    /// </summary>
+    public static DateTime? OpenedAt(string? path = null)
+    {
+        try
+        {
+            using var fs = new FileStream(path ?? DefaultPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            var buf = new byte[160];
+            int n = fs.Read(buf, 0, buf.Length);
+            return ParseOpenLine(Encoding.UTF8.GetString(buf, 0, n));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    public static DateTime? ParseOpenLine(string text)
+    {
+        var line = text.TrimStart((char)0xFEFF).Split((char)10)[0].Trim();
+        const string prefix = "Log file open, ";
+        if (!line.StartsWith(prefix, StringComparison.Ordinal)) return null;
+        return DateTime.TryParseExact(line[prefix.Length..], "MM/dd/yy HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture,
+                                      System.Globalization.DateTimeStyles.AssumeLocal, out var t) ? t : null;
+    }
+
     /// <summary>Reads what Fortnite added to the log since last time. Starts at the end of the file the first time.</summary>
     public void Poll(DateTime nowUtc)
     {

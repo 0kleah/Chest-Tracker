@@ -80,16 +80,20 @@ public partial class MainWindow : Window
             MaxButton.Content = WindowState == WindowState.Maximized ? "" : "";
         };
         Loaded += OnLoaded;
+        Closing += OnClosingWindow;
         Closed += (_, _) =>
         {
             _app.Tracker.Stop();
             _overlay?.Close();
+            _tray?.Dispose();
+            _tray = null;
         };
     }
 
     void OnLoaded(object sender, RoutedEventArgs e)
     {
         LoadSettingsIntoControls();
+        LoadLookIntoControls();
         _ready = true;
         RefreshCounts();
         RefreshStatus();
@@ -97,6 +101,7 @@ public partial class MainWindow : Window
         if (_app.Settings.OverlayEnabled) ShowOverlay();
         if (_app.Settings.AutoStart) _app.Tracker.Start();
         _ = _app.RefreshOnlineAsync();
+        SetUpBackground();
 
         // ChestTracker.exe --page odds|settings opens straight to that page
         var args = Environment.GetCommandLineArgs();
@@ -104,7 +109,8 @@ public partial class MainWindow : Window
         if (i >= 0 && i + 1 < args.Length)
             (args[i + 1].ToLowerInvariant() switch
             {
-                "odds" => NavOdds, "settings" => NavSettings, "stats" => NavStats, "map" => NavMap, "treasure" => NavTreasure, _ => NavHome,
+                "odds" => NavOdds, "settings" => NavSettings, "stats" => NavStats, "map" => NavMap, "treasure" => NavTreasure,
+                "matches" => NavMatches, "finds" => NavFinds, "squad" => NavSquad, _ => NavHome,
             }).IsChecked = true;
     }
 
@@ -120,6 +126,8 @@ public partial class MainWindow : Window
             BreakdownText.Text += $" · {_app.EventChests:N0} count for the token";
         long today = _app.Store.CountSince(DateTime.Today);
         TodayText.Text = today == 1 ? "1 today" : $"{today:N0} today";
+        SessionHomeText.Text = $"This session: {_app.SessionChests:N0} chest{(_app.SessionChests == 1 ? "" : "s")} in {_app.SessionMatches} match{(_app.SessionMatches == 1 ? "" : "es")}"
+                               + (_app.SessionStart.Date == DateTime.Today ? $" (since {_app.SessionStart:h:mm tt})" : $" (since {_app.SessionStart:ddd h:mm tt})");
         ChanceText.Text = Odds.Percent(chance);
         OneInText.Text = Odds.OneIn(chance);
 
@@ -271,15 +279,19 @@ public partial class MainWindow : Window
 
     void Nav_Checked(object sender, RoutedEventArgs e)
     {
-        if (HomePage is null || OddsPage is null || SettingsPage is null || StatsPage is null || MapPage is null || TreasurePage is null) return;
+        if (HomePage is null || OddsPage is null || SettingsPage is null || StatsPage is null || MapPage is null || TreasurePage is null
+            || MatchesPage is null || FindsPage is null || SquadPage is null) return;
         static Visibility V(RadioButton b) => b.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         HomePage.Visibility = V(NavHome);
         StatsPage.Visibility = V(NavStats);
         MapPage.Visibility = V(NavMap);
         TreasurePage.Visibility = V(NavTreasure);
+        MatchesPage.Visibility = V(NavMatches);
+        FindsPage.Visibility = V(NavFinds);
+        SquadPage.Visibility = V(NavSquad);
         OddsPage.Visibility = V(NavOdds);
         SettingsPage.Visibility = V(NavSettings);
-        if (MapPage.Visibility != Visibility.Visible) ReleaseMap();
+        if (MapPage.Visibility != Visibility.Visible && MatchesPage.Visibility != Visibility.Visible) ReleaseMap();
         if (TreasurePage.Visibility == Visibility.Visible && (_app.Status is null || DateTime.UtcNow - _app.Status.FetchedUtc > TimeSpan.FromMinutes(5)))
             _ = _app.RefreshStatusAsync();
         RefreshVisiblePage();
@@ -291,6 +303,9 @@ public partial class MainWindow : Window
         if (StatsPage.Visibility == Visibility.Visible) RefreshStats();
         else if (MapPage.Visibility == Visibility.Visible) _ = RefreshMapAsync();
         else if (TreasurePage.Visibility == Visibility.Visible) RefreshTreasure();
+        else if (MatchesPage.Visibility == Visibility.Visible) RefreshMatchHistory();
+        else if (FindsPage.Visibility == Visibility.Visible) RefreshFinds();
+        else if (SquadPage.Visibility == Visibility.Visible) RefreshSquad();
     }
 
     // ================================================================== home actions
@@ -376,8 +391,11 @@ public partial class MainWindow : Window
     public void BringToFront()
     {
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Opacity = 1;
         Show();
         Activate();
+        RefreshCounts();
+        RefreshVisiblePage();
     }
 
     // ================================================================== odds page

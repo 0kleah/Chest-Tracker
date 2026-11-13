@@ -27,6 +27,18 @@ public sealed class ReplayLedger
         /// <summary>Chest positions (for the map) were saved, or looked for, from this replay.</summary>
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
         public bool PositionsTried { get; set; }
+        // Match details for the Matches page (from the replay)
+        public int? Placement { get; set; }
+        public int? Players { get; set; }
+        public int? Eliminations { get; set; }
+        public int? DurationSeconds { get; set; }
+        public string? Playlist { get; set; }
+        /// <summary>Details, finds and positions were read (or looked for) from this replay.</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+        public bool DetailsTried { get; set; }
+        /// <summary>Teammates from this replay were added to squad totals (or looked for).</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+        public bool SquadTried { get; set; }
     }
 
     public bool Initialized { get; set; }

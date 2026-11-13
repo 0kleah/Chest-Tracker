@@ -51,60 +51,39 @@ public partial class MainWindow
         sources.Add(new("In Treasure Hours", st.TreasureHours.ToString("N0")));
         sources.Add(new("Total", st.Total.ToString("N0")));
         SourceList.ItemsSource = sources;
+        RefreshEfficiency(st);
     }
 
     // ================================================================== map
-
-    bool _mapLoading;
 
     void MapFilter_Checked(object sender, RoutedEventArgs e)
     {
         if (_ready && MapPage.Visibility == Visibility.Visible) _ = RefreshMapAsync();
     }
 
-    /// <summary>Drops the map picture while the page isn't shown (it's the biggest thing in memory).</summary>
+    /// <summary>Drops the map picture while no page shows it (it's the biggest thing in memory).</summary>
     void ReleaseMap()
     {
-        if (MapImage.Source is null && MapDots.Children.Count == 0) return;
+        _mapBitmap = null;
+        if (MapImage.Source is null && MapDots.Children.Count == 0 && RouteImage.Source is null) return;
         MapImage.Source = null;
         MapDots.Children.Clear();
+        RouteImage.Source = null;
+        RouteCanvas.Children.Clear();
     }
 
     async Task RefreshMapAsync()
     {
         var cal = _app.Treasure.Map;
-        if (MapImage.Source is null && !_mapLoading)
+        if (MapImage.Source is null)
         {
-            _mapLoading = true;
             MapMessage.Text = "Loading the map…";
             MapMessage.Visibility = Visibility.Visible;
-            var path = await _app.MapImageAsync();
-            _mapLoading = false;
+            var bmp = await MapBitmapAsync();
             if (MapPage.Visibility != Visibility.Visible) return;
-            if (path is null)
-            {
-                MapMessage.Text = "Couldn't download the map picture (are you online?). Your chests are still drawn where they were.";
-            }
-            else
-            {
-                try
-                {
-                    var bmp = new BitmapImage();
-                    bmp.BeginInit();
-                    bmp.CacheOption = BitmapCacheOption.OnLoad;   // read it all now so the file isn't kept open
-                    bmp.DecodePixelWidth = 1000;                   // 1000 px is plenty, and a quarter of the memory
-                    bmp.UriSource = new Uri(path);
-                    bmp.EndInit();
-                    bmp.Freeze();
-                    MapImage.Source = bmp;
-                    MapMessage.Visibility = Visibility.Collapsed;
-                }
-                catch (Exception)
-                {
-                    try { File.Delete(path); } catch (IOException) { }
-                    MapMessage.Text = "The map picture couldn't be opened. It will be downloaded again next time.";
-                }
-            }
+            MapImage.Source = bmp;
+            MapMessage.Text = "Couldn't download the map picture (are you online?). Your chests are still drawn where they were.";
+            MapMessage.Visibility = bmp is null ? Visibility.Visible : Visibility.Collapsed;
         }
 
         DateTime from = MapToday.IsChecked == true ? DateTime.Today

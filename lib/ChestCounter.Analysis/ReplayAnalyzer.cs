@@ -724,6 +724,39 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
             }
         }
         var hasTeam = target?.TeamIndex is int ti && players.Any(p => p.TeamIndex == ti && p.Id != target.Id);
+
+        // Teammates' own chests (for squad totals). Only what the recording player's replay saw: a teammate far away
+        // is out of range, so their chests there are not in the replay.
+        var teammates = new List<TeammateRecord>();
+        if (target?.TeamIndex is int squadIndex)
+        {
+            foreach (var mate in players.Where(p => p.TeamIndex == squadIndex && p.Id != target.Id))
+            {
+                var mateStates = _playerStateToPlayerId.Where(kv => kv.Value == mate.Id).Select(kv => kv.Key).ToHashSet();
+                var matePawns = _pawnToPlayerState.Where(kv => mateStates.Contains(kv.Value)).Select(kv => kv.Key).ToHashSet();
+                var mateSearches = _searches
+                    .Where(x => x.SearcherPawn is uint mp && matePawns.Contains(mp) && (!x.Stale || StableKey(x.ActorKey)))
+                    .OrderBy(x => x.Time)
+                    .ToList();
+                teammates.Add(new TeammateRecord
+                {
+                    Name = mate.PlayerName ?? mate.StreamerModeName ?? "",
+                    EpicId = mate.EpicId,
+                    IsBot = mate.IsBot,
+                    Chests = mateSearches.Where(x => ChestKinds.IsChest(ChestKinds.Classify(x.Label)))
+                        .Select(x => new ChestRecord
+                        {
+                            TimeSeconds = MathF.Round(x.Time, 1),
+                            Kind = ChestKinds.Classify(x.Label),
+                            Blueprint = x.Label,
+                            Destroyed = x.Destroyed,
+                            X = x.Where?.X,
+                            Y = x.Where?.Y,
+                        }).ToList(),
+                    AmmoBoxes = mateSearches.Count(x => ChestKinds.Classify(x.Label) == ChestKinds.AmmoBox),
+                });
+            }
+        }
         var teamFinds = new List<TreasureFind>();
         foreach (var pz in _prizes.Where(p => p.Pawn is uint pawn && teammatePawns.ContainsKey(pawn)))
         {
@@ -889,6 +922,7 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
             Chests = chests,
             TreasureFinds = finds,
             TeamTreasureFinds = teamFinds,
+            Teammates = teammates,
         };
     }
 }

@@ -2,7 +2,7 @@
 
 > **Disclaimer:** This project was coded with **Claude Opus 5.5**, Anthropic's AI model.
 
-Counts the chests you open in Fortnite and shows your odds of finding the **Pirate Shop Access token**, with an overlay that sits on top of the game. It also shows your stats, a map of every chest you've opened, your best landing spots, and the Treasure Hunters info (Treasure Hours, prize odds, weekly prizes, server status) right in the app.
+Counts the chests you open in Fortnite and shows your odds of finding the **Pirate Shop Access token**, with an overlay that sits on top of the game. It also shows your stats, a map of every chest you've opened, your route in each match, your best landing spots, everything you've found, your squad's chests, and the Treasure Hunters info (Treasure Hours, prize odds, weekly prizes, server status) right in the app. You can change what the overlay shows, how big it is, and the colours of everything.
 
 ## In simple terms
 
@@ -24,7 +24,7 @@ That's it. It doesn't watch your screen, it doesn't touch the game while you pla
 - **Replays switched off?** The app notices when a Battle Royale match starts without a replay being recorded (Fortnite's own log file says so) and warns you on the overlay and in the app, so you don't lose a whole session.
 - **The token is never guaranteed.** Epic's rate is per chest: every chest is its own 1 in 137,500 roll. More chests raise your chance but can never make it 100%. Some players have opened over 100,000 chests without getting it (at 100,000 chests, about half of players still wouldn't have it). See [The odds](#the-odds).
 - **Treasure Hours switch on by themselves** at the times Epic announced, with that hour's real boost (for example 2x on 8 Nov). You can still switch them on or off by hand with F9.
-- **Your data** stays in the same folder as the .exe: `chest_counts.json` (your count) and `replays_counted.json` (which matches were counted). Keep them with the .exe when you update. The app tells you when a new version is out.
+- **Your data** stays in the same folder as the .exe: `chest_counts.json` (your count), `replays_counted.json` (which matches were counted), `finds.json` (what you found), `squad.json` (your teammates, if you turn that on) and `chest_tracker_settings.json`. Keep them with the .exe when you update. The app tells you when a new version is out.
 - **Small and light:** about 25 MB to download, and about 15 to 40 MB of memory while it runs (most of the time it's in the background).
 - **After a Fortnite update**, the replay format can change. If a match can't be read, the app tells you. Please open an issue so it can be fixed.
 
@@ -59,11 +59,16 @@ Download **ChestTracker.exe** from the **[latest release](https://github.com/0kl
 If you close Fortnite in the middle of a match, that match can't be read, because Fortnite never finishes its replay.
 
 **Home** shows your total, today's chests, your token chance, progress toward a 50% chance, and your recent chests (type, opened or broken open). It's also where you add a previous count.
-**Stats** shows matches counted, chests per match, your best match, this week, a 14-day chart, and your chest types.
+**Stats** shows matches counted, chests per match, your best match, this week, a 14-day chart, your chest types, and **how fast you find chests**: time to your first chest, chests in the first 5 minutes after landing, and chests per minute, overall and for each landing spot.
 **Map** shows every chest you've opened this season on the island, and your **best landing spots**: where your first chest of each match was, and how many chests those matches gave you on average.
+**Matches** lists every counted match with your placement, eliminations, mode and length. Pick one to see your **route**: its chests on the map, numbered in the order you opened them.
+**Finds** lists the Treasure Hunters prizes you've found (gizmos, weekly cosmetics, and the Pirate Shop Access token if it ever drops). The tracker adds them from your replays by itself, including older replays Fortnite still has. Found something before you had Chest Tracker? Add it by hand from the list (or type its name). If the replay doesn't say exactly which prize it was, the app tells you, and you can press **Change** to fix it.
+**Squad** (turn on **Squad totals** in Settings) remembers everyone you play with: how many chests they opened and of what type, and any prize they found. Your replay only sees what happens near you, so a teammate who drops far away won't have all their chests counted; their real totals are usually higher. Squad totals never change your own count or odds.
 **Treasure** has the Treasure Hunters info: a countdown to the next Treasure Hour, every Treasure Hour in your time zone with its boosts, the odds of every prize with **your** chance of each, the weekly prizes, and Fortnite's server status.
 **Odds** is a calculator: chests needed for 10% to 99%, and how many matches that is.
-**Settings** shows your recent matches and what was counted in each, lets you add chests from **older replays** (Fortnite keeps about 100), and covers automatic Treasure Hours, update checks, the overlay and your data.
+**Settings** shows your recent matches and what was counted in each, lets you add chests from **older replays** (Fortnite keeps about 100), and covers automatic Treasure Hours, update checks, **tray mode**, **start with Windows**, **Treasure Hour reminders**, **squad totals**, the **overlay look** and **colours**, and your data.
+
+The **Home** page and the overlay also show **this session**: chests and matches since you last opened Fortnite.
 
 After each match the overlay shows a short summary for a few seconds, for example **+9 chests · 1 sprite · 2 broken open**.
 
@@ -95,6 +100,17 @@ A replay is the exact record of its match, so if you press F7 during a Battle Ro
 - **F6** switches between **move mode** (dashed border: drag it anywhere, right-click for a menu) and **locked** (clicks pass through).
 - While you're playing (Fortnite active with your cursor captured) it's **always click-through** and **never takes focus**, so it can't pull you out of the game.
 - It remembers its position and see-through level.
+- **Settings → Overlay look:** size (70% to 170%), a compact mode, and what it shows: chest count, token chance, "1 in …", this session, today's chests, next Treasure Hour, the status line, the Treasure Hours badge and the move/lock hint.
+
+### Colours
+
+**Settings → Colours** has accent presets (gold, ocean, emerald, violet, rose, fire, ice, silver), background presets (midnight, pure black, navy, forest, plum, slate), and exact colour codes for the accent, background, cards, text, overlay background and overlay text. Changes show straight away. **Back to the original colours** undoes it all.
+
+### Tray, start with Windows and reminders
+
+- **Keep running in the tray:** closing the window leaves Chest Tracker counting in the system tray (by the clock). Click the chest icon to open it, right-click it to quit.
+- **Start with Windows:** opens quietly in the tray when you turn on your PC. This adds one entry for Chest Tracker under your Windows user's startup programs, and switching it off removes it.
+- **Treasure Hour reminders:** a Windows notification 10 minutes before each Treasure Hour, and when it starts.
 
 ## The odds
 

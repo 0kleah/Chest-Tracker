@@ -23,3 +23,4 @@ Changes for ChestCounter:
 Changes for Chest Tracker 3.1 (in `ChestCounter.Analysis`):
 
 16. `ReplayAnalyzer.cs` + `Models.cs`: each chest gets its position (`ChestRecord.X`, `Y`, world units), for the chest map. It is the chest's own spawn location when the replay sends one (chests spawned during the match, such as sprite chests), otherwise where its loot spawned (the loot comes out of the chest). Counting is unchanged.
+17. `ReplayAnalyzer.cs` + `Models.cs`: `MatchRecord.Teammates` lists each teammate (name, Epic id, bot or not) with the chests the replay saw them open (searched or broken, same rules as for the player), for squad totals. Only chests near the recording player are in a replay.

@@ -1,7 +1,18 @@
 namespace ChestTracker.Core;
 
 /// <summary>One counted match, from its replay chests.</summary>
-public sealed record MatchStat(string Match, DateTime Start, int Chests, int Broken, int Sprite, float? LandX, float? LandY);
+public sealed record MatchStat(string Match, DateTime Start, int Chests, int Broken, int Sprite, float? LandX, float? LandY)
+{
+    /// <summary>When the last chest of the match was opened.</summary>
+    public DateTime Last { get; init; }
+    /// <summary>Chests opened in the first 5 minutes after the first one (roughly: after landing).</summary>
+    public int FirstFive { get; init; }
+    /// <summary>Chests per minute between the first and last chest.</summary>
+    public double PerMinute => Chests / Math.Max(1.0, (Last - Start).TotalMinutes);
+}
+
+/// <summary>How quickly you find chests, overall or at one landing spot.</summary>
+public sealed record Efficiency(string Name, int Matches, double FirstChestSeconds, double FirstFive, double PerMinute);
 
 /// <summary>A named place on the island (from the map service).</summary>
 public sealed record Poi(string Name, double X, double Y);
@@ -42,9 +53,14 @@ public sealed class ChestStats
             {
                 var ordered = g.OrderBy(e => e.When).ToList();
                 var land = ordered.FirstOrDefault(e => e.X is not null);
-                return new MatchStat(g.Key, ordered[0].When!.Value, ordered.Count, ordered.Count(e => e.Broken),
+                var first = ordered[0].When!.Value;
+                return new MatchStat(g.Key, first, ordered.Count, ordered.Count(e => e.Broken),
                                      ordered.Count(e => e.Kind?.Contains("Sprite", StringComparison.OrdinalIgnoreCase) == true),
-                                     land?.X, land?.Y);
+                                     land?.X, land?.Y)
+                {
+                    Last = ordered[^1].When!.Value,
+                    FirstFive = ordered.Count(e => e.When <= first.AddMinutes(5)),
+                };
             })
             .OrderBy(m => m.Start).ToList();
 
@@ -73,6 +89,28 @@ public sealed class ChestStats
             Days = perDay,
         };
     }
+
+    /// <summary>
+    /// How quickly you find chests: time from the start of the match to your first chest (includes the warm-up island
+    /// and the bus), chests in the first 5 minutes after your first chest, and chests per minute after that.
+    /// </summary>
+    public static Efficiency EfficiencyOf(string name, IReadOnlyCollection<MatchStat> matches, IReadOnlyDictionary<string, DateTime> matchStarts)
+    {
+        if (matches.Count == 0) return new Efficiency(name, 0, 0, 0, 0);
+        var firsts = matches.Where(m => matchStarts.ContainsKey(m.Match))
+                            .Select(m => (m.Start - matchStarts[m.Match]).TotalSeconds)
+                            .Where(sec => sec > 0 && sec < 3600).ToList();
+        return new Efficiency(name, matches.Count, firsts.Count == 0 ? 0 : firsts.Average(),
+                              matches.Average(m => m.FirstFive), matches.Average(m => m.PerMinute));
+    }
+
+    /// <summary>Efficiency at each landing spot (nearest place to your first chest), most chests per minute first.</summary>
+    public static List<Efficiency> EfficiencyBySpot(IEnumerable<MatchStat> matches, IReadOnlyList<Poi> pois, IReadOnlyDictionary<string, DateTime> matchStarts) =>
+        matches.Where(m => m.LandX is not null)
+            .GroupBy(m => Nearest(pois, m.LandX!.Value, m.LandY!.Value)?.Name)
+            .Where(g => g.Key is not null)
+            .Select(g => EfficiencyOf(g.Key!, g.ToList(), matchStarts))
+            .OrderByDescending(e => e.PerMinute).ToList();
 
     /// <summary>The closest named place to a point (world units).</summary>
     public static Poi? Nearest(IReadOnlyList<Poi> pois, double x, double y) =>

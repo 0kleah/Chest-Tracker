@@ -185,12 +185,13 @@ public sealed class CountStore
     }
 
     /// <summary>Fills in where a match's chests were (from its replay), matched in time order. Returns how many were set.</summary>
-    public int SetPositions(string match, IReadOnlyList<(float? X, float? Y)> positionsInOrder)
+    public int SetPositions(string match, IReadOnlyList<(float? X, float? Y)> positionsInOrder, bool onlyMissing = false)
     {
         lock (_gate)
         {
             var entries = _data.Log.Where(e => e.Match == match && e.Source == "replay").OrderBy(e => e.When).ToList();
             if (entries.Count != positionsInOrder.Count) return 0;
+            if (onlyMissing && entries.All(e => e.X is not null)) return 0;
             int set = 0;
             for (int i = 0; i < entries.Count; i++)
             {

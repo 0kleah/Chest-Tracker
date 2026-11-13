@@ -1,30 +1,26 @@
 <Window x:Class="ChestTracker.OverlayWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Chest Tracker overlay" Width="292" SizeToContent="Height"
+        Title="Chest Tracker overlay" SizeToContent="WidthAndHeight"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Topmost="True" ShowInTaskbar="False" ShowActivated="False" ResizeMode="NoResize"
-        FontFamily="{StaticResource UiFont}" Foreground="{StaticResource Text}"
+        FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource Text}"
         UseLayoutRounding="True">
-    <Grid Margin="12">
-        <Border x:Name="Panel" CornerRadius="18" BorderThickness="1" BorderBrush="#2EFFFFFF" Padding="18,14,18,12"
+    <Grid x:Name="Root" Margin="12">
+        <Grid.LayoutTransform>
+            <ScaleTransform x:Name="Scale" ScaleX="1" ScaleY="1"/>
+        </Grid.LayoutTransform>
+        <Border x:Name="Panel" CornerRadius="18" BorderThickness="1" BorderBrush="#2EFFFFFF" Padding="18,14,18,12" Width="268"
                 MouseLeftButtonDown="Panel_MouseLeftButtonDown" MouseMove="Panel_MouseMove"
                 MouseLeftButtonUp="Panel_MouseLeftButtonUp" MouseRightButtonUp="Panel_MouseRightButtonUp">
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Color="#F21A2131" Offset="0"/>
-                    <GradientStop Color="#F20F131C" Offset="0.6"/>
-                    <GradientStop Color="#F21C1810" Offset="1"/>
-                </LinearGradientBrush>
-            </Border.Background>
             <Border.Effect>
                 <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.55" Color="Black"/>
             </Border.Effect>
             <StackPanel>
-                <Grid>
-                    <StackPanel Orientation="Horizontal">
-                        <Image Source="{StaticResource ChestIcon}" Width="14" Height="14" VerticalAlignment="Center"/>
-                        <TextBlock Text="OPENED" Style="{StaticResource Label}" FontSize="10.5" Margin="7,0,0,0" VerticalAlignment="Center"/>
+                <Grid x:Name="HeaderRow">
+                    <StackPanel x:Name="HeaderLabel" Orientation="Horizontal">
+                        <Image Source="{DynamicResource ChestIcon}" Width="14" Height="14" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="HeaderText" Text="OPENED" FontSize="10.5" FontWeight="SemiBold" Margin="7,0,0,0" VerticalAlignment="Center" Opacity="0.65"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                         <Border x:Name="TreasureBadge" CornerRadius="5" Padding="6,1" Background="{StaticResource OrangeSoft}" Margin="0,0,8,0" Visibility="Collapsed">
@@ -37,23 +33,36 @@
                     </StackPanel>
                 </Grid>
 
-                <Grid Margin="0,2,0,0">
+                <Grid x:Name="CountRow" Margin="0,2,0,0">
                     <TextBlock x:Name="CountText" Text="0" FontSize="38" FontWeight="Bold" VerticalAlignment="Center"/>
-                    <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <TextBlock x:Name="ChanceText" Text="0%" FontSize="17" FontWeight="Bold" Foreground="{StaticResource Gold}" HorizontalAlignment="Right"/>
-                        <TextBlock x:Name="OneInText" Text="token chance" FontSize="10.5" Foreground="{StaticResource TextDim}" HorizontalAlignment="Right"/>
+                    <StackPanel x:Name="ChanceBox" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <TextBlock x:Name="ChanceText" Text="0%" FontSize="17" FontWeight="Bold" Foreground="{DynamicResource Gold}" HorizontalAlignment="Right"/>
+                        <TextBlock x:Name="OneInText" Text="token chance" FontSize="10.5" Opacity="0.6" HorizontalAlignment="Right"/>
                     </StackPanel>
                 </Grid>
 
-                <TextBlock x:Name="StatusLine" FontSize="11" Foreground="{StaticResource TextDim}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                <Grid x:Name="SessionRow" Margin="0,4,0,0">
+                    <TextBlock x:Name="SessionLabel" Text="This session" FontSize="11" Opacity="0.6"/>
+                    <TextBlock x:Name="SessionText" Text="0 chests · 0 matches" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                </Grid>
+                <Grid x:Name="TodayRow" Margin="0,2,0,0">
+                    <TextBlock x:Name="TodayLabel" Text="Today" FontSize="11" Opacity="0.6"/>
+                    <TextBlock x:Name="TodayText" Text="0 chests" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                </Grid>
+                <Grid x:Name="NextHourRow" Margin="0,2,0,0">
+                    <TextBlock x:Name="NextHourLabel" Text="Next Treasure Hour" FontSize="11" Opacity="0.6"/>
+                    <TextBlock x:Name="NextHourText" Text="" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                </Grid>
+
+                <TextBlock x:Name="StatusLine" FontSize="11" Opacity="0.6" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
                 <Border x:Name="WarnBox" Visibility="Collapsed" CornerRadius="8" Padding="8,5" Margin="0,6,0,0" Background="#33FF9A3C">
                     <TextBlock Text="Replays are off: this match can't be counted. Fortnite → Settings → Game → Replays." FontSize="10.5"
                                Foreground="#FFD2A8" TextWrapping="Wrap"/>
                 </Border>
                 <Border x:Name="ToastBox" Visibility="Collapsed" CornerRadius="8" Padding="8,5" Margin="0,6,0,0" Background="#33FFCD50">
-                    <TextBlock x:Name="ToastText" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Gold}" TextWrapping="Wrap"/>
+                    <TextBlock x:Name="ToastText" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Gold}" TextWrapping="Wrap"/>
                 </Border>
-                <TextBlock x:Name="HintText" FontSize="10.5" Foreground="{StaticResource TextFaint}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                <TextBlock x:Name="HintText" FontSize="10.5" Opacity="0.45" HorizontalAlignment="Center" Margin="0,4,0,0"/>
             </StackPanel>
         </Border>
         <Rectangle x:Name="MoveOutline" RadiusX="18" RadiusY="18" Stroke="{StaticResource Accent}" StrokeThickness="1.5"

@@ -32,7 +32,10 @@ public sealed class Tracker
     readonly Dictionary<string, int> _failures = new(StringComparer.OrdinalIgnoreCase);
     readonly FortniteLog _log = new();
     CancellationTokenSource? _cts;
-    bool _positionsFilled;
+    volatile bool _enrichPending = true;
+
+    /// <summary>Reads older replays again for what's missing (finds, match details, squad). Runs a few at a time.</summary>
+    public void RequestEnrich() => _enrichPending = true;
 
     public bool Running { get; private set; }
     public TrackerState State { get; private set; } = TrackerState.Off;
@@ -190,11 +193,7 @@ public sealed class Tracker
         }
         SetState(inMatch ? TrackerState.InMatch : TrackerState.Waiting);
 
-        if (!_positionsFilled)
-        {
-            _positionsFilled = true;
-            FillPositions();
-        }
+        if (_enrichPending && !inMatch) _enrichPending = EnrichOlder(maxReplays: 8);
     }
 
     // ------------------------------------------------------------------ replays switched off?
@@ -218,36 +217,67 @@ public sealed class Tracker
         if (ReplayWarning is not null) { ReplayWarning = null; StatusChanged?.Invoke(); }
     }
 
-    // ------------------------------------------------------------------ chest positions for the map
+    // ------------------------------------------------------------------ details from replays (map, finds, matches, squad)
 
     /// <summary>
-    /// Chests counted before positions were saved (or by an older version) get them from their replay, if Fortnite
-    /// still has it. Done once per run, one replay at a time, in the background.
+    /// Reads older replays Fortnite still has, for anything not saved yet: chest positions (map), what you found
+    /// (Finds), placement and eliminations (Matches) and, if squad tracking is on, your teammates. A few replays per
+    /// pass so new matches are never held up. Returns true while there is more to do.
     /// </summary>
-    void FillPositions()
+    bool EnrichOlder(int maxReplays)
     {
-        var missing = _app.Store.MatchesWithoutPositions();
-        if (missing.Count == 0) return;
-        bool any = false;
-        foreach (var e in _app.Ledger.All())
+        bool squad = _app.Settings.SquadTracking;
+        var todo = _app.Ledger.All()
+            .Where(e => !e.DetailsTried || (squad && !e.SquadTried))
+            .OrderByDescending(e => e.MatchStartUtc ?? DateTime.MinValue)
+            .ToList();
+        if (todo.Count == 0) return false;
+        bool changed = false;
+        int read = 0;
+        foreach (var e in todo)
         {
-            if (e.SessionId is not string id || !missing.Contains(id) || e.PositionsTried) continue;
+            bool needSquad = squad && !e.SquadTried;
             var path = Path.Combine(ReplayChests.DemosFolder, e.File);
-            if (File.Exists(path))
+            bool readable = File.Exists(path) && (e.Note is null || !e.Note.StartsWith("couldn't read", StringComparison.Ordinal))
+                            && e.Note is not ("not a Battle Royale match" or "someone else's replay");
+            if (readable)
             {
+                if (read >= maxReplays) break;
+                read++;
                 try
                 {
                     var r = ReplayChests.Analyze(path);
-                    var positions = r.Record.Chests.OrderBy(c => c.TimeSeconds).Select(c => (c.X, c.Y)).ToList();
-                    if (_app.Store.SetPositions(id, positions) > 0) any = true;
+                    ApplyDetails(e, r, details: !e.DetailsTried, squad: needSquad);
+                    changed = true;
                 }
                 catch (Exception) { }
             }
-            e.PositionsTried = true;
+            e.DetailsTried = true;
+            if (needSquad) e.SquadTried = true;
         }
         _app.Ledger.Save();
         Memory.Trim();
-        if (any) _app.NotifyCountsChanged();
+        if (changed) _app.NotifyCountsChanged();
+        return todo.Count > read && read >= maxReplays;
+    }
+
+    /// <summary>Saves what a replay says beyond the chest count: positions, finds, placement, teammates.</summary>
+    void ApplyDetails(ReplayLedger.Entry entry, ReplayResult r, bool details, bool squad)
+    {
+        var rec = r.Record;
+        if (details)
+        {
+            entry.Placement = rec.Placement;
+            entry.Players = rec.TotalPlayers;
+            entry.Eliminations = rec.Eliminations;
+            entry.DurationSeconds = rec.DurationSeconds;
+            entry.Playlist = rec.Playlist;
+            entry.MatchStartUtc ??= rec.MatchStartUtc;
+            if (r.Counts && !string.IsNullOrEmpty(rec.SessionId))
+                _app.Store.SetPositions(rec.SessionId, rec.Chests.OrderBy(c => c.TimeSeconds).Select(c => (c.X, c.Y)).ToList(), onlyMissing: true);
+            if (rec.IsBattleRoyale && rec.IsReplayOwner) _app.Finds.AddFromReplay(rec);
+        }
+        if (squad && rec.IsBattleRoyale && rec.IsReplayOwner) _app.Squad.AddMatch(rec);
     }
 
     void ReadAndCount(FileInfo f, ReplayFileInfo info, bool treasureKnown = true)
@@ -285,6 +315,9 @@ public sealed class Tracker
             entry.ChestsCounted = added;
         }
         entry.PositionsTried = true;
+        try { ApplyDetails(entry, r, details: true, squad: _app.Settings.SquadTracking); } catch (Exception) { }
+        entry.DetailsTried = true;
+        entry.SquadTried = _app.Settings.SquadTracking;
         ledger.Set(entry);
         ledger.Save();
         Error = null;
