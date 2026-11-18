@@ -145,7 +145,7 @@ public static class Online
                     if (!fortnite) continue;
                     string detail = Pretty(i.GetProperty("status").GetString());
                     if (i.TryGetProperty("scheduled_for", out var sf) && sf.ValueKind == JsonValueKind.String && DateTime.TryParse(sf.GetString(), out var from))
-                        detail = $"{from.ToLocalTime():ddd d MMM, h:mm tt}" + (i.TryGetProperty("scheduled_until", out var su) && su.ValueKind == JsonValueKind.String && DateTime.TryParse(su.GetString(), out var to) ? $" to {to.ToLocalTime():h:mm tt}" : "") + " · " + detail;
+                        detail = $"{from.ToLocalTime():ddd d MMM}, {from.ToLocalTime():t}" + (i.TryGetProperty("scheduled_until", out var su) && su.ValueKind == JsonValueKind.String && DateTime.TryParse(su.GetString(), out var to) ? $" to {to.ToLocalTime():t}" : "") + " · " + detail;
                     notices.Add(new StatusNotice(name, detail));
                 }
             }

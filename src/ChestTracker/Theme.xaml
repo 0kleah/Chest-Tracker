@@ -292,6 +292,37 @@
             </Setter.Value>
         </Setter>
     </Style>
+    <!-- A layer switch on a map: a coloured dot (Tag) and a name. Dimmed when off. -->
+    <Style x:Key="Chip" TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Margin" Value="0,0,6,6"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <Border x:Name="bd" CornerRadius="12" Padding="9,4,11,4" Background="{DynamicResource Surface2}"
+                            BorderBrush="{DynamicResource Line}" BorderThickness="1" Opacity="0.5">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="bd" Property="Opacity" Value="1"/>
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Surface3}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource TextFaint}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
     <Style x:Key="SegmentHost" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Surface2}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource Line}"/>

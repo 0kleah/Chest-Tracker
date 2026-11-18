@@ -26,6 +26,8 @@ public sealed class AppState
     public TreasureInfo Treasure { get; private set; }
     public FindStore Finds { get; }
     public SquadStore Squad { get; }
+    /// <summary>Each match's path, bus, storm, eliminations and other players' chests (match_maps folder).</summary>
+    public MatchMaps Maps { get; } = new(Path.Combine(DataDir, "match_maps"));
 
     // Treasure Hours switched on/off by hand (F9), and auto Treasure Hours switched off by hand, in local time.
     readonly object _treasureGate = new();
@@ -42,6 +44,10 @@ public sealed class AppState
     public event Action? CountsChanged;
     public event Action? TreasureModeChanged;
     public event Action? OverlayLockToggleRequested;
+    /// <summary>Your map key was pressed in Fortnite (raised on the hotkey thread).</summary>
+    public event Action? MapKeyPressed;
+    /// <summary>Escape was pressed in Fortnite (closes the map).</summary>
+    public event Action? EscapePressed;
     /// <summary>Update check, Treasure info, status or map places changed.</summary>
     public event Action? OnlineChanged;
 
@@ -49,13 +55,50 @@ public sealed class AppState
     public FortniteStatus? Status { get; private set; }
     public List<Poi> Places { get; private set; } = new();
 
+    /// <summary>Things the user should be told once at startup (a damaged file was set aside, a backup was put back).</summary>
+    public List<string> StartupNotes { get; } = new();
+
+    /// <summary>
+    /// Opens the saved files. Throws <see cref="DataBusyException"/> if one can't be opened right now (another program
+    /// is holding it): carrying on with an empty count would save over the real one later.
+    /// </summary>
     public AppState()
     {
-        Settings = AppSettings.Load(SettingsPath);
+        var settings = AppSettings.Load(SettingsPath);
+        Settings = settings.Value;
         Store = new CountStore(CountsPath);
         Ledger = ReplayLedger.Load(LedgerPath);
         Finds = new FindStore(FindsPath);
         Squad = new SquadStore(SquadPath);
+
+        var files = new (string Path, string What, LoadState State, string? Aside, string? Backup)[]
+        {
+            (CountsPath, "your chest count", Store.Loaded.State, Store.Loaded.SetAside, Store.Loaded.BackupUsed),
+            (LedgerPath, "the list of counted matches", Ledger.LoadState, Ledger.SetAside, Ledger.BackupUsed),
+            (FindsPath, "your finds", Finds.Loaded.State, Finds.Loaded.SetAside, Finds.Loaded.BackupUsed),
+            (SquadPath, "your squad list", Squad.LoadState, Squad.SetAside, Squad.BackupUsed),
+            (SettingsPath, "your settings", settings.State, settings.SetAside, settings.BackupUsed),
+        };
+        if (files.FirstOrDefault(f => f.State == LoadState.Busy) is { Path: not null } busy)
+            throw new DataBusyException(Path.GetFileName(busy.Path));
+        foreach (var f in files)
+        {
+            if (f.State == LoadState.RestoredFromBackup)
+                StartupNotes.Add($"The file with {f.What} ({Path.GetFileName(f.Path)}) was damaged. It was put back from the backup {f.Backup}, and the damaged file was kept as {f.Aside}.");
+            else if (f.State == LoadState.Unreadable)
+                StartupNotes.Add($"The file with {f.What} ({Path.GetFileName(f.Path)}) was damaged and there was no backup, so that part starts again. The damaged file was kept as {f.Aside}.");
+            else if (f.State == LoadState.Ok)
+                DataFile.Backup(f.Path, DateTime.Today);   // one copy a day, in the backups folder
+        }
+        // If the count went back to an older copy (or started again), matches counted since then would be missing while
+        // the list of counted matches still says "counted". Forget those, so their replays are read again
+        // (reading a match twice can't count it twice).
+        if (Store.Loaded.State is LoadState.RestoredFromBackup or LoadState.Unreadable)
+        {
+            var have = Store.Snapshot().Where(e => e.Match is not null).Select(e => e.Match!).ToHashSet();
+            if (Ledger.Forget(e => !e.FromBefore && e.Note is null && e.ChestsCounted > 0 && e.SessionId is not null && !have.Contains(e.SessionId)) > 0)
+                Ledger.Save();
+        }
         if (Squad.NeedsRebuild)
         {
             // squad lists from 3.2 have no party info: read the saved replays again (friend choices are kept)
@@ -143,6 +186,8 @@ public sealed class AppState
     public void SaveSettings() => Settings.Save(SettingsPath);
 
     public void NotifyCountsChanged() => Changed();
+    /// <summary>Hotkeys were changed in Settings: anything showing their names refreshes.</summary>
+    public void NotifyHotkeysChanged() => Changed();
 
     void Changed()
     {
@@ -310,6 +355,9 @@ public sealed class AppState
 
     public void RequestOverlayLockToggle() => OverlayLockToggleRequested?.Invoke();
 
+    public void OnMapKey() { if (Settings.MapOverlay && Native.Win32.FortniteFocused()) MapKeyPressed?.Invoke(); }
+    public void OnEscape() { if (Native.Win32.FortniteFocused()) EscapePressed?.Invoke(); }
+
     // ------------------------------------------------------------------ online (update check, Treasure info, status, map)
 
     /// <summary>Checks for a newer Chest Tracker and newer Treasure info. Safe to call any time; failures are ignored.</summary>
@@ -365,4 +413,11 @@ public sealed class AppState
         try { return File.Exists(MapPoisPath) ? Online.ParsePois(File.ReadAllText(MapPoisPath)) : new(); }
         catch (IOException) { return new(); }
     }
+}
+
+/// <summary>A saved file couldn't be opened because another program is using it.</summary>
+public sealed class DataBusyException : Exception
+{
+    public string FileName { get; }
+    public DataBusyException(string fileName) : base($"{fileName} is being used by another program.") => FileName = fileName;
 }

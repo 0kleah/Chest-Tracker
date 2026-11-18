@@ -16,7 +16,11 @@ namespace ChestTracker;
 public sealed record MatchHistoryRow(string Id, string When, string Detail, string Chests);
 public sealed record FindRow(string Id, string Icon, string Name, string Detail);
 public sealed record SquadRow(string Key, string Name, string Badge, Brush BadgeBack, Brush BadgeFore, string FriendAction,
-                              string Detail, string Kinds, string Finds, Visibility FindsVisibility, string Chests);
+                              string Detail, string Kinds, string Finds, Visibility FindsVisibility, string Chests,
+                              string LastMatch, Visibility LastMatchVisibility);
+/// <summary>One player in a match's squad list (Matches page and the Squad page's last match).</summary>
+public sealed record MateRow(string Name, string Badge, Brush BadgeBack, Brush BadgeFore, Visibility BadgeVisibility,
+                             string Chests, string ChestsWord, string Kills, string KillsLong);
 public sealed record EffRow(string Name, string Matches, string Five, string Rate);
 
 /// <summary>Matches, Finds and Squad pages; efficiency stats; tray, reminders; overlay look and colours.</summary>
@@ -78,7 +82,11 @@ public partial class MainWindow
         _matchEntries = _app.Ledger.All()
             .Where(e => !e.FromBefore && e.Note is null && e.MatchStartUtc is not null && !string.IsNullOrEmpty(e.SessionId))
             .OrderByDescending(e => e.MatchStartUtc).ToList();
-        string? selected = (MatchHistoryList.SelectedItem as MatchHistoryRow)?.Id;
+        string? selected = _jumpToMatch ?? (MatchHistoryList.SelectedItem as MatchHistoryRow)?.Id;
+        bool jumped = _jumpToMatch is not null;
+        _jumpToMatch = null;
+        MatchMatesSwitch.IsChecked = _app.Settings.MatchTeammates;
+        ShowMatchLayerSwitches();
         var rows = _matchEntries.Select(e =>
         {
             var t = e.MatchStartUtc!.Value.ToLocalTime();
@@ -89,14 +97,19 @@ public partial class MainWindow
             if (e.Broken > 0) bits.Add($"{e.Broken} broken open");
             if (e.Prizes is { Count: > 0 } pz)
                 bits.Add(pz.Any(x => FindNames.IsToken(x.PrizeId)) ? "TOKEN FOUND!" : $"{pz.Count} golden prize{(pz.Count == 1 ? "" : "s")} seen");
-            return new MatchHistoryRow(e.SessionId!, t.Date == DateTime.Today ? $"Today {t:h:mm tt}" : t.ToString("ddd d MMM, h:mm tt"),
+            if (_app.Settings.MatchTeammates && e.Mates is { Count: > 0 } mates)
+                bits.Add("with " + string.Join(", ", mates.Select(m => m.Name)));
+            return new MatchHistoryRow(e.SessionId!, t.Date == DateTime.Today ? $"Today {t:t}" : $"{t:ddd d MMM}, {t:t}",
                                        bits.Count == 0 ? "Battle Royale" : string.Join(" · ", bits), e.ChestsCounted.ToString("N0"));
         }).ToList();
         MatchHistoryList.ItemsSource = rows;
         MatchHistoryEmpty.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         var again = rows.FirstOrDefault(r => r.Id == selected) ?? rows.FirstOrDefault();
         MatchHistoryList.SelectedItem = again;
-        if (again is null) _ = DrawRouteAsync(null);
+        if (jumped && again is not null) MatchHistoryList.ScrollIntoView(again);
+        // Always draw: the list keeps its selection when the same match is still picked (no "selection changed"),
+        // and the map picture is let go of whenever you leave the page.
+        _ = DrawRouteAsync(again);
     }
 
     static string? Mode(string? playlist)
@@ -114,11 +127,13 @@ public partial class MainWindow
     async Task DrawRouteAsync(MatchHistoryRow? row)
     {
         RouteCanvas.Children.Clear();
+        SetMatchView(null, new List<Point>());
         var entry = row is null ? null : _matchEntries.FirstOrDefault(m => m.SessionId == row.Id);
         MatchPlaced.Text = entry?.Placement is int pl && pl > 0 ? $"#{pl}" : "–";
         MatchElims.Text = entry?.Eliminations?.ToString() ?? "–";
         MatchChests.Text = entry?.ChestsCounted.ToString("N0") ?? "–";
         MatchLength.Text = entry?.DurationSeconds is int d ? $"{d / 60}:{d % 60:00}" : "–";
+        ShowMates(entry);
         if (entry?.Prizes is { Count: > 0 } prizes)
         {
             PrizesText.Text = string.Join("\n", prizes.Select(p =>
@@ -138,6 +153,7 @@ public partial class MainWindow
             PrizesText.Text = entry is null ? "" : entry.DetailsVersion < Tracker.DetailsVersion ? "Still reading this match's replay…" : "None seen near you in this match.";
             PrizesText.Foreground = (Brush)FindResource("TextDim");
         }
+        PrizesHint.Visibility = entry?.Prizes is { Count: > 0 } ? Visibility.Visible : Visibility.Collapsed;   // the small print only when there's something to explain
         if (RouteImage.Source is null)
         {
             RouteMessage.Text = "Loading the map…";
@@ -150,25 +166,229 @@ public partial class MainWindow
 
         var chests = _app.Store.Snapshot().Where(c => c.Match == entry.SessionId && c.Source == "replay").OrderBy(c => c.When).ToList();
         var points = chests.Where(c => c.X is not null).Select(c => (Chest: c, At: MapPoint(c.X!.Value, c.Y!.Value))).ToList();
-        if (points.Count == 0)
+        var map = string.IsNullOrEmpty(entry.SessionId) ? null : _app.Maps.Load(entry.SessionId);
+        MatchMapNote.Text = map is not null ? ""
+            : entry.DetailsVersion < Tracker.DetailsVersion && File.Exists(System.IO.Path.Combine(ReplayChests.DemosFolder, entry.File))
+                ? "Still reading this match's replay for your path, the storm and the rest…"
+                : "Only your chests for this match: its replay was gone before Chest Tracker could save the rest.";
+        MatchMapNote.Visibility = MatchMapNote.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (points.Count == 0 && map is null)
         {
             RouteMessage.Text = "No chest positions for this match (its replay is gone).";
             RouteMessage.Visibility = Visibility.Visible;
             return;
         }
         if (RouteImage.Source is not null) RouteMessage.Visibility = Visibility.Collapsed;
+        SetMatchView(map, points.Select(p => p.At).ToList());
+        points = points.Select(p => (p.Chest, _matchView(p.At))).ToList();
+        // With your real path showing, straight lines from chest to chest would only get in the way.
+        DrawRouteOn(RouteCanvas, points, line: !(map is { Path.Count: >= 2 } && _app.Settings.LayerPath));
+        if (map is not null) DrawMatchLayers(RouteCanvas, map);
+    }
 
+    void ShowMatchLayerSwitches()
+    {
+        var s = _app.Settings;
+        LayerPath.IsChecked = s.LayerPath; LayerBus.IsChecked = s.LayerBus; LayerStorm.IsChecked = s.LayerStorm;
+        LayerMarks.IsChecked = s.LayerMarks; LayerMates.IsChecked = s.LayerMates; LayerOthers.IsChecked = s.LayerOthers;
+        LayerCloseUp.IsChecked = s.MatchCloseUp;
+    }
+
+    void MatchLayer_Click(object sender, RoutedEventArgs e)
+    {
+        var s = _app.Settings;
+        s.LayerPath = LayerPath.IsChecked == true; s.LayerBus = LayerBus.IsChecked == true; s.LayerStorm = LayerStorm.IsChecked == true;
+        s.LayerMarks = LayerMarks.IsChecked == true; s.LayerMates = LayerMates.IsChecked == true; s.LayerOthers = LayerOthers.IsChecked == true;
+        s.MatchCloseUp = LayerCloseUp.IsChecked == true;
+        Save();
+        _ = DrawRouteAsync(MatchHistoryList.SelectedItem as MatchHistoryRow);
+    }
+
+    // The match map's view: the whole island, or a close-up of where you went (markers keep their size).
+    Func<Point, Point> _matchView = p => p;
+    double _matchZoom = 1;
+
+    void SetMatchView(MatchMap? map, List<Point> chests)
+    {
+        _matchView = p => p;
+        _matchZoom = 1;
+        RouteImage.RenderTransform = Transform.Identity;
+        if (!_app.Settings.MatchCloseUp) return;
+        var pts = new List<Point>(chests);
+        if (map is not null)
+        {
+            if (_app.Settings.LayerPath) pts.AddRange(map.Path.Select(p => MapPoint(p[1], p[2])));
+            if (_app.Settings.LayerMarks) pts.AddRange(map.Marks.Select(m => MapPoint(m.X, m.Y)));
+        }
+        if (pts.Count == 0) return;
+        double minX = pts.Min(p => p.X), maxX = pts.Max(p => p.X), minY = pts.Min(p => p.Y), maxY = pts.Max(p => p.Y);
+        double side = Math.Clamp(Math.Max(maxX - minX, maxY - minY) * 1.2 + 90, 230, 1000);   // at most about 4x closer
+        if (side >= 900) return;   // already nearly the whole island
+        double x0 = Math.Clamp((minX + maxX) / 2 - side / 2, 0, 1000 - side), y0 = Math.Clamp((minY + maxY) / 2 - side / 2, 0, 1000 - side);
+        double k = 1000 / side;
+        _matchZoom = k;
+        _matchView = p => new Point((p.X - x0) * k, (p.Y - y0) * k);
+        RouteImage.RenderTransform = new MatrixTransform(k, 0, 0, k, -x0 * k, -y0 * k);
+    }
+
+    Point MV(float x, float y) => _matchView(MapPoint(x, y));
+
+    static readonly Color[] MateColours = { Color.FromRgb(0x3D, 0xDC, 0x84), Color.FromRgb(0xFF, 0x6F, 0xB5), Color.FromRgb(0x2E, 0xE6, 0xC8) };
+
+    /// <summary>
+    /// The rest of a match's map around your chests: storm, bus, your path, teammates' and others' chests underneath,
+    /// your knocks and eliminations on top. Each layer can be switched off.
+    /// </summary>
+    void DrawMatchLayers(Canvas canvas, MatchMap map)
+    {
+        var s = _app.Settings;
+        int under = 0;   // layers go under your route (which is already drawn), in this order
+        void Under(UIElement e) => canvas.Children.Insert(under++, e);
+        var shadow = new SolidColorBrush(Color.FromArgb(0xB0, 0, 0, 0));
+        var cal = _app.Treasure.Map;
+        double perUnit = 1000 / cal.Size * cal.Scale * _matchZoom;   // canvas pixels per world unit
+
+        if (s.LayerStorm)
+        {
+            var storm = new SolidColorBrush(Color.FromRgb(0xB0, 0x7C, 0xFF));
+            int n = 0;
+            foreach (var z in map.Storm)
+            {
+                n++;
+                var c = MV(z[0], z[1]);
+                double r = z[2] * perUnit;
+                if (r < 2) continue;
+                var ring = new Ellipse { Width = r * 2, Height = r * 2, Stroke = storm, StrokeThickness = 2.5, Opacity = 0.85, ToolTip = $"Storm circle {n}" };
+                Canvas.SetLeft(ring, c.X - r); Canvas.SetTop(ring, c.Y - r);
+                Under(ring);
+                var label = new Border
+                {
+                    Background = storm, CornerRadius = new CornerRadius(7), Padding = new Thickness(5, 0, 5, 1),
+                    Child = new TextBlock { Text = n.ToString(CultureInfo.InvariantCulture), FontSize = 12, FontWeight = FontWeights.Bold, Foreground = Brushes.White },
+                };
+                Canvas.SetLeft(label, c.X - 7); Canvas.SetTop(label, c.Y - r - 9);
+                Under(label);
+            }
+        }
+
+        if (s.LayerBus && map.Bus is { Length: 4 } b)
+        {
+            Point a = MV(b[0], b[1]), z = MV(b[2], b[3]);
+            Under(new Line { X1 = a.X, Y1 = a.Y, X2 = z.X, Y2 = z.Y, Stroke = shadow, StrokeThickness = 5 });
+            Under(new Line { X1 = a.X, Y1 = a.Y, X2 = z.X, Y2 = z.Y, Stroke = Brushes.White, StrokeThickness = 2.5, StrokeDashArray = new DoubleCollection { 4, 3 }, ToolTip = "Bus route" });
+            // arrow heads along the line, pointing the way it flew (only the ones on the map)
+            double len = Math.Sqrt((z.X - a.X) * (z.X - a.X) + (z.Y - a.Y) * (z.Y - a.Y));
+            if (len > 1)
+            {
+                double ux = (z.X - a.X) / len, uy = (z.Y - a.Y) / len;
+                for (double d = 0; d < len; d += 160)
+                {
+                    double x = a.X + ux * d, y = a.Y + uy * d;
+                    if (x < 20 || y < 20 || x > 980 || y > 980) continue;
+                    var head = new Polygon { Fill = Brushes.White, Stroke = shadow, StrokeThickness = 1 };
+                    head.Points.Add(new Point(x + ux * 11, y + uy * 11));
+                    head.Points.Add(new Point(x - ux * 7 - uy * 8, y - uy * 7 + ux * 8));
+                    head.Points.Add(new Point(x - ux * 7 + uy * 8, y - uy * 7 - ux * 8));
+                    Under(head);
+                }
+            }
+        }
+
+        if (s.LayerPath && map.Path.Count >= 2)
+        {
+            var blue = new SolidColorBrush(Color.FromRgb(0x5C, 0xE1, 0xFF));
+            var back = new Polyline { Stroke = shadow, StrokeThickness = 7.5, StrokeLineJoin = PenLineJoin.Round, StrokeEndLineCap = PenLineCap.Round, StrokeStartLineCap = PenLineCap.Round, Opacity = 0.75 };
+            var line = new Polyline { Stroke = blue, StrokeThickness = 3.5, StrokeLineJoin = PenLineJoin.Round, StrokeEndLineCap = PenLineCap.Round, StrokeStartLineCap = PenLineCap.Round, ToolTip = "Your path" };
+            foreach (var p in map.Path) { var at = MV(p[1], p[2]); back.Points.Add(at); line.Points.Add(at); }
+            Under(back); Under(line);
+            var start = MV(map.Path[0][1], map.Path[0][2]);
+            var jump = new Ellipse { Width = 14, Height = 14, Fill = blue, Stroke = Brushes.White, StrokeThickness = 2, ToolTip = "Where you jumped from the bus" };
+            Canvas.SetLeft(jump, start.X - 7); Canvas.SetTop(jump, start.Y - 7);
+            Under(jump);
+        }
+
+        if (s.LayerOthers)
+        {
+            var grey = new SolidColorBrush(Color.FromRgb(0xAA, 0xB2, 0xC0));
+            foreach (var c in map.Others)
+            {
+                var at = MV(c[1], c[2]);
+                var dot = new Rectangle
+                {
+                    Width = 11, Height = 11, Fill = grey, Stroke = shadow, StrokeThickness = 1.5, RadiusX = 2, RadiusY = 2, Opacity = 0.9,
+                    ToolTip = $"Opened by another player at {(int)c[0] / 60}:{(int)c[0] % 60:00}{(c.Length > 3 && c[3] > 0 ? " (broken open)" : "")}",
+                };
+                Canvas.SetLeft(dot, at.X - 5.5); Canvas.SetTop(dot, at.Y - 5.5);
+                Under(dot);
+            }
+        }
+
+        if (s.LayerMates)
+        {
+            int i = 0;
+            foreach (var mate in map.Mates)
+            {
+                var brush = new SolidColorBrush(MateColours[i++ % MateColours.Length]);
+                foreach (var c in mate.Chests)
+                {
+                    var at = MV(c[1], c[2]);
+                    var dot = new Ellipse
+                    {
+                        Width = 15, Height = 15, Fill = brush, Stroke = shadow, StrokeThickness = 1.5,
+                        ToolTip = $"{mate.Name}{(mate.Bot ? " (bot)" : "")} at {(int)c[0] / 60}:{(int)c[0] % 60:00}{(c.Length > 3 && c[3] > 0 ? " (broken open)" : "")}",
+                    };
+                    Canvas.SetLeft(dot, at.X - 7.5); Canvas.SetTop(dot, at.Y - 7.5);
+                    Under(dot);
+                }
+            }
+        }
+
+        if (s.LayerMarks)
+        {
+            foreach (var m in map.Marks)
+            {
+                var at = MV(m.X, m.Y);
+                string who = m.Other is null ? "" : $" {m.Other}{(m.Bot ? " (bot)" : "")}";
+                (Brush fill, Brush stroke, string mark, string tip) = m.Kind switch
+                {
+                    "elim" => ((Brush)FindResource("Red"), (Brush)Brushes.White, "✕", $"You eliminated{(who.Length > 0 ? who : " a player")}"),
+                    "knock" => ((Brush)Brushes.Transparent, (Brush)FindResource("Orange"), "", $"You knocked{(who.Length > 0 ? who : " a player")}"),
+                    "knocked" => ((Brush)Brushes.Transparent, (Brush)Brushes.White, "", $"You were knocked{(who.Length > 0 ? " by" + who : "")}"),
+                    _ => ((Brush)Brushes.White, (Brush)FindResource("Red"), "✕", $"You were eliminated{(who.Length > 0 ? " by" + who : "")}"),
+                };
+                var g = new Grid { Width = 28, Height = 28, ToolTip = tip };
+                g.Children.Add(new Ellipse { Fill = shadow });   // a dark edge so it shows on gold chests and bright ground
+                g.Children.Add(new Ellipse { Margin = new Thickness(2), Fill = fill, Stroke = stroke, StrokeThickness = 3 });
+                if (mark.Length > 0)
+                    g.Children.Add(new TextBlock
+                    {
+                        Text = mark, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = m.Kind == "elim" ? Brushes.White : (Brush)FindResource("Red"),
+                        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                    });
+                Canvas.SetLeft(g, at.X - 14); Canvas.SetTop(g, at.Y - 14);
+                canvas.Children.Add(g);
+            }
+        }
+    }
+
+    /// <summary>A route on a 1000 x 1000 map: a dotted line and numbered chests (sprite chests purple, broken open orange).</summary>
+    void DrawRouteOn(Canvas canvas, List<(ChestLogEntry Chest, Point At)> points, bool line = true)
+    {
+        canvas.Children.Clear();
         var gold = (Brush)FindResource("Gold");
-        var line = new Polyline { Stroke = gold, StrokeThickness = 3.5, Opacity = 0.85, StrokeLineJoin = PenLineJoin.Round, StrokeDashArray = new DoubleCollection { 3, 2 } };
-        foreach (var p in points) line.Points.Add(p.At);
-        RouteCanvas.Children.Add(line);
+        if (line)
+        {
+            var dashed = new Polyline { Stroke = gold, StrokeThickness = 3.5, Opacity = 0.85, StrokeLineJoin = PenLineJoin.Round, StrokeDashArray = new DoubleCollection { 3, 2 } };
+            foreach (var p in points) dashed.Points.Add(p.At);
+            canvas.Children.Add(dashed);
+        }
         var orange = (Brush)FindResource("Orange");
         var sprite = new SolidColorBrush(Color.FromRgb(0xB5, 0x7B, 0xFF));
         int n = 0;
         foreach (var (c, at) in points)
         {
             n++;
-            var dot = new Grid { Width = 30, Height = 30, ToolTip = $"#{n} · {c.Kind ?? "Chest"} · {(c.Broken ? "broken open" : "opened")} · {c.When:h:mm:ss tt}" };
+            var dot = new Grid { Width = 30, Height = 30, ToolTip = $"#{n} · {c.Kind ?? "Chest"} · {(c.Broken ? "broken open" : "opened")} · {c.When:T}" };
             dot.Children.Add(new Ellipse
             {
                 Fill = c.Kind?.StartsWith("Sprite", StringComparison.Ordinal) == true ? sprite : c.Broken ? orange : gold,
@@ -181,8 +401,70 @@ public partial class MainWindow
             });
             Canvas.SetLeft(dot, at.X - 15);
             Canvas.SetTop(dot, at.Y - 15);
-            RouteCanvas.Children.Add(dot);
+            canvas.Children.Add(dot);
         }
+    }
+
+    /// <summary>The route map is as big as fits under the top row (never squashed: the details scroll instead).</summary>
+    void MatchDetailScroll_SizeChanged(object sender, SizeChangedEventArgs e) =>
+        RouteBox.MaxHeight = Math.Max(380, MatchDetailScroll.ActualHeight - 100);
+
+    void MatchMatesSwitch_Click(object sender, RoutedEventArgs e)
+    {
+        _app.Settings.MatchTeammates = MatchMatesSwitch.IsChecked == true;
+        Save();
+        RefreshMatchHistory();
+        ShowMates(_matchEntries.FirstOrDefault(m => m.SessionId == (MatchHistoryList.SelectedItem as MatchHistoryRow)?.Id));
+    }
+
+    /// <summary>The picked match's squad: you and each teammate, with chests and eliminations.</summary>
+    void ShowMates(ReplayLedger.Entry? entry)
+    {
+        MatesBox.Visibility = _app.Settings.MatchTeammates && entry is not null ? Visibility.Visible : Visibility.Collapsed;
+        if (MatesBox.Visibility != Visibility.Visible) { MatesList.ItemsSource = null; return; }
+        if (entry!.Mates is null)
+        {
+            MatesList.ItemsSource = null;
+            MatesMessage.Text = entry.DetailsVersion < Tracker.DetailsVersion
+                ? "Still reading this match's replay… (it's read between matches)"
+                : "Not saved for this match (its replay is gone).";
+            MatesMessage.Visibility = Visibility.Visible;
+            return;
+        }
+        MatesMessage.Text = entry.Mates.Count == 0 ? "No teammates in this match (solo)." : "";
+        MatesMessage.Visibility = entry.Mates.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        MatesList.ItemsSource = MateRows(entry);
+    }
+
+    /// <summary>You first, then your teammates (most chests first).</summary>
+    List<MateRow> MateRows(ReplayLedger.Entry entry)
+    {
+        var gold = (Brush)FindResource("Gold");
+        var goldSoft = new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xCD, 0x50));
+        var dim = (Brush)FindResource("TextDim");
+        var dimSoft = (Brush)FindResource("Surface2");
+        var squad = _app.Squad.All();
+        static string Word(int n) => n == 1 ? "chest" : "chests";
+        static string Long(int? k) => k is int n ? $"{n} elim{(n == 1 ? "" : "s")}" : "elims ?";
+        var rows = new List<MateRow>
+        {
+            new("You", "", dimSoft, dim, Visibility.Collapsed, entry.ChestsCounted.ToString("N0"), Word(entry.ChestsCounted),
+                entry.Eliminations?.ToString() ?? "–", Long(entry.Eliminations)),
+        };
+        foreach (var m in (entry.Mates ?? new()).OrderByDescending(m => m.Chests).ThenByDescending(m => m.Kills ?? 0))
+        {
+            var known = squad.FirstOrDefault(p => string.Equals(p.Name, m.Name, StringComparison.OrdinalIgnoreCase));
+            bool friend = !m.Bot && (known?.FriendOverride ?? m.Party);
+            rows.Add(new MateRow(m.Name, m.Bot ? "BOT" : friend ? "FRIEND" : "RANDOM", friend ? goldSoft : dimSoft, friend ? gold : dim,
+                                 Visibility.Visible, m.Chests.ToString("N0"), Word(m.Chests), m.Kills?.ToString() ?? "–", Long(m.Kills)));
+        }
+        return rows;
+    }
+
+    static string MatchTime(DateTime utc)
+    {
+        var t = utc.ToLocalTime();
+        return t.Date == DateTime.Today ? $"today {t:t}" : t.Date == DateTime.Today.AddDays(-1) ? $"yesterday {t:t}" : $"{t:ddd d MMM}, {t:t}";
     }
 
     // ================================================================== finds
@@ -225,7 +507,7 @@ public partial class MainWindow
         var bits = new List<string> { f.Source == "replay" ? "Found by the tracker" : "Added by you" };
         if (f.Category != "Other") bits.Add(f.Category);
         if (f.Chest is string chest && f.Source == "replay") bits.Add(f.Broken ? $"{chest}, broken open" : chest);
-        if (f.WhenUtc is DateTime w) bits.Add(w.ToLocalTime().ToString("ddd d MMM, h:mm tt"));
+        if (f.WhenUtc is DateTime w) bits.Add($"{w.ToLocalTime():ddd d MMM}, {w.ToLocalTime():t}");
         else if (f.Week is int wk) bits.Add($"week {wk}");
         var text = string.Join(" · ", bits);
         return f.Unsure ? text + " · the exact prize isn't in the replay, press Change if this is wrong" : text;
@@ -324,14 +606,39 @@ public partial class MainWindow
 
     void RefreshSquad()
     {
+        if (_teammate is not null && TeammateView.Visibility == Visibility.Visible) ShowTeammate();
         SquadTrackSwitch.IsChecked = _app.Settings.SquadTracking;
         SquadTotalSwitch.IsChecked = _app.Settings.SquadInTotal;
         SquadTotalSwitch.IsEnabled = _app.Settings.SquadTracking;
-        var people = _app.Squad.All();
+        var everyone = _app.Squad.All();
+        string search = SquadSearch.Text.Trim();
+        var people = search.Length == 0 ? everyone
+                   : everyone.Where(p => p.Name.Contains(search, StringComparison.OrdinalIgnoreCase)).ToList();
+        SquadSearchPlaceholder.Visibility = SquadSearch.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         var gold = (Brush)FindResource("Gold");
         var goldSoft = new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xCD, 0x50));
         var dim = (Brush)FindResource("TextDim");
         var dimSoft = (Brush)FindResource("Surface2");
+
+        // Your most recent match with teammates, and each person's last match with you.
+        var withMates = _app.Ledger.All()
+            .Where(e => e.Mates is { Count: > 0 } && e.MatchStartUtc is not null && e.Note is null && !string.IsNullOrEmpty(e.SessionId))
+            .OrderByDescending(e => e.MatchStartUtc).ToList();
+        var lastWith = new Dictionary<string, (ReplayLedger.Entry Entry, ReplayLedger.MateSeen Mate)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var e in withMates)
+            foreach (var m in e.Mates!)
+                lastWith.TryAdd(m.Name, (e, m));
+        if (withMates.FirstOrDefault() is { } last)
+        {
+            LastSquadBox.Visibility = Visibility.Visible;
+            var bits = new List<string> { MatchTime(last.MatchStartUtc!.Value) };
+            if (last.Placement is int pl && pl > 0) bits.Add($"placed #{pl}");
+            if (Mode(last.Playlist) is string mode) bits.Add(mode);
+            LastSquadWhen.Text = string.Join(" · ", bits);
+            LastSquadList.ItemsSource = MateRows(last);
+        }
+        else LastSquadBox.Visibility = Visibility.Collapsed;
+
         SquadList.ItemsSource = people.Select(p => new SquadRow(
             p.Name,
             p.Bot ? $"{p.Name} (bot)" : p.Name,
@@ -345,9 +652,107 @@ public partial class MainWindow
             p.Kinds.Count == 0 ? "No chests seen near you" : string.Join(" · ", p.Kinds.OrderByDescending(k => k.Value).Select(k => $"{k.Value} {k.Key}{(k.Value == 1 ? "" : "s")}")),
             p.Finds.Count == 0 ? "" : "Found: " + string.Join("; ", p.Finds),
             p.Finds.Count == 0 ? Visibility.Collapsed : Visibility.Visible,
-            p.Chests.ToString("N0"))).ToList();
+            p.Chests.ToString("N0"),
+            lastWith.TryGetValue(p.Name, out var lw)
+                ? $"Last match together ({MatchTime(lw.Entry.MatchStartUtc!.Value)}): {lw.Mate.Chests} chest{(lw.Mate.Chests == 1 ? "" : "s")}"
+                  + (lw.Mate.Kills is int k ? $" · {k} elim{(k == 1 ? "" : "s")}" : "")
+                : "",
+            lastWith.ContainsKey(p.Name) ? Visibility.Visible : Visibility.Collapsed)).ToList();
         SquadEmpty.Visibility = people.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        SquadEmpty.Text = _app.Settings.SquadTracking ? "No teammates yet. Play a match with friends (or wait while saved replays are read)." : "Turn on squad tracking and play with friends. They'll show up here.";
+        SquadEmpty.Text = everyone.Count > 0 && people.Count == 0 ? $"Nobody called \"{search}\" in your list."
+                        : _app.Settings.SquadTracking ? "No teammates yet. Play a match with friends (or wait while saved replays are read)." : "Turn on squad tracking and play with friends. They'll show up here.";
+    }
+
+    // ------------------------------------------------------------------ one teammate
+
+    public sealed record TeammateMatchRow(string Id, string When, string Detail, string You, string Them);
+
+    string? _teammate;
+    string? _jumpToMatch;
+
+    void SquadOpen_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string name }) return;
+        _teammate = name;
+        ShowTeammate();
+        SquadPage.ScrollToTop();
+    }
+
+    void TeammateBack_Click(object sender, RoutedEventArgs e)
+    {
+        _teammate = null;
+        TeammateView.Visibility = Visibility.Collapsed;
+        SquadMain.Visibility = Visibility.Visible;
+        RefreshSquad();
+    }
+
+    void TeammateMatchOpen_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string id }) return;
+        _jumpToMatch = id;
+        if (NavMatches.IsChecked == true) RefreshMatchHistory();
+        else NavMatches.IsChecked = true;
+    }
+
+    /// <summary>Every match you played with one teammate: both your chests and eliminations in each, and the totals.</summary>
+    void ShowTeammate()
+    {
+        if (_teammate is not string name) return;
+        var person = _app.Squad.All().FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        var together = _app.Ledger.All()
+            .Where(e => e.Mates is { Count: > 0 } && e.MatchStartUtc is not null && e.Note is null && !string.IsNullOrEmpty(e.SessionId)
+                        && e.Mates.Any(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase)))
+            .OrderByDescending(e => e.MatchStartUtc)
+            .Select(e => (Entry: e, Mate: e.Mates!.First(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase))))
+            .ToList();
+        SquadMain.Visibility = Visibility.Collapsed;
+        TeammateView.Visibility = Visibility.Visible;
+        bool bot = person?.Bot ?? together.FirstOrDefault().Mate?.Bot ?? false;
+        bool friend = person?.IsFriend == true && !bot;
+        TeammateName.Text = name;
+        TeammateBadge.Text = bot ? "BOT" : friend ? "FRIEND" : "RANDOM";
+        TeammateBadgeBox.Background = friend ? new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xCD, 0x50)) : (Brush)FindResource("Surface2");
+        TeammateBadge.Foreground = friend ? (Brush)FindResource("Gold") : (Brush)FindResource("TextDim");
+        string shortName = name.Length > 16 ? name[..15] + "…" : name;
+        TmTheirsLabel.Text = $"{shortName}'s chests";
+        TmThemHeader.Text = shortName.ToUpperInvariant();
+
+        int n = together.Count;
+        int mine = together.Sum(t => t.Entry.ChestsCounted), theirs = together.Sum(t => t.Mate.Chests);
+        int myElims = together.Sum(t => t.Entry.Eliminations ?? 0), theirElims = together.Sum(t => t.Mate.Kills ?? 0);
+        int wins = together.Count(t => t.Entry.Placement == 1);
+        TmMatches.Text = n.ToString("N0");
+        TmYours.Text = mine.ToString("N0");
+        TmTheirs.Text = theirs.ToString("N0");
+        TmElims.Text = $"{myElims} / {theirElims}";
+        var sub = new List<string>();
+        if (person is not null && person.PartyMatches > 0) sub.Add($"{person.PartyMatches} match{(person.PartyMatches == 1 ? "" : "es")} in your party");
+        if (wins > 0) sub.Add($"{wins} win{(wins == 1 ? "" : "s")} together");
+        if (together.FirstOrDefault().Entry is { } latest) sub.Add($"last played {MatchTime(latest.MatchStartUtc!.Value)}");
+        TeammateSub.Text = string.Join(" · ", sub);
+        TmAverages.Text = n == 0 ? ""
+            : $"Per match together: you {(double)mine / n:0.#} chests, {shortName} {(double)theirs / n:0.#}."
+              + (theirs > mine ? $" {shortName} opened more chests than you overall." : mine > theirs ? " You opened more chests overall." : "");
+        TeammateMatches.ItemsSource = together.Select(t =>
+        {
+            var bits = new List<string>();
+            if (t.Entry.Placement is int pl && pl > 0) bits.Add(t.Entry.Players is int p && p > 0 ? $"#{pl} of {p}" : $"#{pl}");
+            if (Mode(t.Entry.Playlist) is string mode) bits.Add(mode);
+            var others = t.Entry.Mates!.Where(m => !string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase)).Select(m => m.Name).ToList();
+            if (others.Count > 0) bits.Add("also " + string.Join(", ", others));
+            string Line(int chests, int? elims) => $"{chests} chest{(chests == 1 ? "" : "s")}{(elims is int k ? $" · {k} elim{(k == 1 ? "" : "s")}" : "")}";
+            return new TeammateMatchRow(t.Entry.SessionId!, MatchTime(t.Entry.MatchStartUtc!.Value), string.Join(" · ", bits),
+                                        Line(t.Entry.ChestsCounted, t.Entry.Eliminations), Line(t.Mate.Chests, t.Mate.Kills));
+        }).ToList();
+        int older = (person?.Matches ?? 0) - n;
+        TmNote.Text = (n == 0 ? "No matches with details yet. " : "")
+            + (older > 0 ? $"{older} older match{(older == 1 ? "" : "es")} together had their replays read before Chest Tracker kept match details, so they're in the totals on the Squad list but not here. " : "")
+            + "Teammates' chests are only the ones opened near you: your replay doesn't see the rest of the island.";
+    }
+
+    void SquadSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_ready) RefreshSquad();
     }
 
     void SquadTrackSwitch_Click(object sender, RoutedEventArgs e)
@@ -434,33 +839,121 @@ public partial class MainWindow
     readonly HashSet<DateTime> _reminded = new();
     DispatcherTimer? _reminderTimer;
 
-    /// <summary>Started by Windows (--tray): stay hidden in the tray.</summary>
+    /// <summary>
+    /// Started by Windows or quietly (--tray): get everything going without showing the window. It's shown for the
+    /// first time when you open it from the tray. (Showing it invisibly and hiding it straight away left it drawing
+    /// black when it was opened later.)
+    /// </summary>
     public void StartHidden()
     {
         _startHidden = true;
-        Opacity = 0;
-        ShowActivated = false;
+        new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
+        OnLoaded(this, new RoutedEventArgs());
+        Memory.Trim();
     }
 
     void SetUpBackground()
     {
         UpdateTray();
+        _fortniteTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _fortniteTimer.Tick += (_, _) => FollowFortnite();
+        _fortniteTimer.Start();
+        FollowFortnite();
         _reminderTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
         _reminderTimer.Tick += (_, _) => CheckReminders();
         _reminderTimer.Start();
-        if (_startHidden)
+    }
+
+    // ------------------------------------------------------------------ start and stop with Fortnite
+
+    DispatcherTimer? _fortniteTimer;
+    bool? _fortniteWasRunning;
+    DateTime? _fortniteClosedAt;
+
+    /// <summary>Waiting in the tray for Fortnite (the overlay is away until it starts).</summary>
+    bool Asleep => _app.Settings.FollowFortnite && _fortniteWasRunning == false && _fortniteClosedAt is null;
+
+    /// <summary>
+    /// Every few seconds: when Fortnite starts, the overlay comes up; a minute after Fortnite closes (time for your last
+    /// match to be counted and its summary shown), it goes away and Chest Tracker waits quietly in the tray. Only acts
+    /// when Fortnite starts or stops, so switching the overlay on or off by hand in between is left alone.
+    /// </summary>
+    void FollowFortnite()
+    {
+        if (!_app.Settings.FollowFortnite) { _fortniteWasRunning = null; _fortniteClosedAt = null; return; }
+        bool running = Win32.FortniteRunning();
+        if (running && _fortniteWasRunning != true)
         {
-            Hide();
-            Opacity = 1;
-            ShowActivated = true;
-            Memory.Trim();
+            _fortniteClosedAt = null;
+            if (_app.Settings.OverlayEnabled) ShowOverlay();
         }
+        else if (!running && _fortniteWasRunning == true)
+        {
+            _fortniteClosedAt = DateTime.UtcNow;
+        }
+        if (!running && _fortniteClosedAt is DateTime closed && DateTime.UtcNow - closed > TimeSpan.FromSeconds(60))
+        {
+            _fortniteClosedAt = null;
+            GoToSleep();
+        }
+        _fortniteWasRunning = running;
+        UpdateTrayTip();
+    }
+
+    /// <summary>Fortnite closed: put the overlay away (your overlay setting stays on) and free what isn't needed.</summary>
+    void GoToSleep()
+    {
+        _overlay?.Close();
+        _overlay = null;
+        if (!IsVisible) ReleaseMap();
+        Memory.Trim();
+    }
+
+    void UpdateTrayTip() =>
+        _tray?.SetTooltip($"Chest Tracker · {_app.Store.Total:N0} chests · {Odds.Percent(_app.Chance)} token chance"
+                          + (Asleep ? " · waiting for Fortnite" : ""));
+
+    void FollowSwitch_Click(object sender, RoutedEventArgs e)
+    {
+        bool on = FollowSwitch.IsChecked == true;
+        if (on && !WindowsStartup.IsOn() && !WindowsStartup.Set(true))
+        {
+            FollowSwitch.IsChecked = false;
+            MessageBox.Show(this, "Windows didn't allow Chest Tracker to start with Windows, which this needs.", "Chest Tracker", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        var s = _app.Settings;
+        s.FollowFortnite = on;
+        if (on)
+        {
+            // It has to be running to notice Fortnite starting: start with Windows, and stay in the tray when closed.
+            s.StartWithWindows = true;
+            s.TrayMode = true;
+            StartupSwitch.IsChecked = true;
+            TraySwitch.IsChecked = true;
+            UpdateTray();
+            _fortniteWasRunning = null;
+            _fortniteClosedAt = null;
+            FollowFortnite();
+            if (_fortniteWasRunning == false) GoToSleep();
+            FollowStatus.Text = _fortniteWasRunning == true
+                ? "On. Fortnite is running, so the overlay stays up until a minute after you close it."
+                : "On. The overlay is put away until Fortnite starts.";
+        }
+        else
+        {
+            FollowStatus.Text = "Off. The overlay stays up whenever Chest Tracker is running.";
+            if (s.OverlayEnabled) ShowOverlay();
+            UpdateTrayTip();
+        }
+        FollowStatus.Visibility = Visibility.Visible;
+        Save();
     }
 
     /// <summary>The tray icon is there while tray mode or reminders are on (reminders show from it).</summary>
     void UpdateTray()
     {
-        bool want = _app.Settings.TrayMode || _app.Settings.Reminders || _startHidden;
+        bool want = _app.Settings.TrayMode || _app.Settings.Reminders || _startHidden || _app.Settings.FollowFortnite;
         if (want && _tray is null)
         {
             _tray = new TrayIcon("Chest Tracker");
@@ -472,7 +965,7 @@ public partial class MainWindow
             _tray.Dispose();
             _tray = null;
         }
-        _tray?.SetTooltip($"Chest Tracker · {_app.Store.Total:N0} chests · {Odds.Percent(_app.Chance)} token chance");
+        UpdateTrayTip();
     }
 
     void ShowTrayMenu()
@@ -511,20 +1004,27 @@ public partial class MainWindow
 
     void CheckReminders()
     {
-        _tray?.SetTooltip($"Chest Tracker · {_app.Store.Total:N0} chests · {Odds.Percent(_app.Chance)} token chance");
+        UpdateTrayTip();
         if (!_app.Settings.Reminders || _tray is null) return;
         var now = DateTime.UtcNow;
         if (_app.Treasure.NextHour(now) is not { } h) return;
         var start = h.StartUtc.ToLocalTime();
         var end = h.EndUtc.ToLocalTime();
         if (now < h.StartUtc && h.StartUtc - now <= TimeSpan.FromMinutes(10) && _reminded.Add(h.StartUtc.AddTicks(1)))
-            _tray.Notify("Treasure Hour in 10 minutes", $"From {start:h:mm} to {end:h:mm tt}: {h.Pirate:0.##}x Pirate Shop Access odds. Get into a match!");
+            _tray.Notify("Treasure Hour in 10 minutes", $"From {start:t} to {end:t}: {h.Pirate:0.##}x Pirate Shop Access odds. Get into a match!");
         else if (now >= h.StartUtc && now - h.StartUtc < TimeSpan.FromMinutes(5) && _reminded.Add(h.StartUtc))
-            _tray.Notify("Treasure Hour has started", $"{h.Pirate:0.##}x Pirate Shop Access odds until {end:h:mm tt}.");
+            _tray.Notify("Treasure Hour has started", $"{h.Pirate:0.##}x Pirate Shop Access odds until {end:t}.");
     }
 
     void TraySwitch_Click(object sender, RoutedEventArgs e)
     {
+        if (TraySwitch.IsChecked != true && _app.Settings.FollowFortnite)
+        {
+            TraySwitch.IsChecked = true;   // it waits for Fortnite in the tray
+            FollowStatus.Text = "\"Start and stop with Fortnite\" waits in the tray, so this stays on while that's on.";
+            FollowStatus.Visibility = Visibility.Visible;
+            return;
+        }
         _app.Settings.TrayMode = TraySwitch.IsChecked == true;
         Save();
         UpdateTray();
@@ -548,6 +1048,13 @@ public partial class MainWindow
             return;
         }
         _app.Settings.StartWithWindows = on;
+        if (!on && _app.Settings.FollowFortnite)
+        {
+            // without starting with Windows it can't be there when Fortnite starts
+            _app.Settings.FollowFortnite = false;
+            FollowSwitch.IsChecked = false;
+            if (_app.Settings.OverlayEnabled) ShowOverlay();
+        }
         if (on && !_app.Settings.TrayMode)
         {
             _app.Settings.TrayMode = true;   // starting with Windows only makes sense in the tray
@@ -563,8 +1070,11 @@ public partial class MainWindow
     {
         var s = _app.Settings;
         TraySwitch.IsChecked = s.TrayMode;
+        // "Start with Windows" points at this .exe. If the .exe was moved since it was switched on, point it at the new place.
+        if (s.StartWithWindows && !WindowsStartup.IsOn() && !App.Quiet) WindowsStartup.Set(true);
         StartupSwitch.IsChecked = WindowsStartup.IsOn();
         RemindersSwitch.IsChecked = s.Reminders;
+        FollowSwitch.IsChecked = s.FollowFortnite;
         SquadTabSwitch.IsChecked = s.SquadTab;
         NavSquad.Visibility = s.SquadTab ? Visibility.Visible : Visibility.Collapsed;
 
@@ -693,6 +1203,7 @@ public partial class MainWindow
     {
         Save();
         ThemeManager.Apply(_app.Settings);
+        NextHourBoosts.Children.Clear();   // rebuilt in the new colours
         _overlay?.ApplyLook();
         foreach (var (get, box, swatch) in _colourBoxes)
         {

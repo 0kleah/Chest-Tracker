@@ -38,3 +38,12 @@ finds.json
 finds.json.tmp
 squad.json
 squad.json.tmp
+map_landmarks.bin
+map_check.png
+
+# safety copies and set-aside files the app makes
+backups/
+*.unreadable-*
+*.json.tmp
+old versions/
+match_maps/

@@ -48,6 +48,9 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
 
     static ReplayAnalyzer()
     {
+        // Patch 20: paths are collected here, thinned out; don't also keep every movement update.
+        FortniteReplayReader.FortniteReplayBuilder.KeepLocations = false;
+
         // Map every chest / container blueprint we do not know yet onto the generic container group.
         NetFieldParser.AliasResolver = path =>
         {
@@ -111,6 +114,46 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
     private readonly HashSet<uint> _prizeChannelsSeen = new();
     private readonly HashSet<uint> _equipChannelsSeen = new();
     private readonly Dictionary<uint, uint> _pawnToPlayerState = new();
+    /// <summary>Where each pawn was, thinned out to about one point a second (patch 20).</summary>
+    private readonly Dictionary<uint, List<PathPoint>> _pawnPaths = new();
+
+    /// <summary>Where a pawn was at a moment, from its path (null if the replay didn't see it within 3 s).</summary>
+    private (float X, float Y)? PositionAt(uint? pawn, float t) =>
+        pawn is uint p ? PositionAt(new[] { p }, t) : null;
+
+    private (float X, float Y)? PositionAt(IEnumerable<uint> pawns, float t)
+    {
+        PathPoint? before = null, after = null;
+        foreach (var pawn in pawns)
+        {
+            if (!_pawnPaths.TryGetValue(pawn, out var path)) continue;
+            foreach (var q in path)
+            {
+                if (q.T <= t) { if (before is null || q.T > before.T) before = q; }
+                else { if (after is null || q.T < after.T) after = q; break; }
+            }
+        }
+        if (before is not null && after is not null && after.T - before.T <= 6f)
+        {
+            float k = (t - before.T) / Math.Max(0.01f, after.T - before.T);
+            return (MathF.Round(before.X + (after.X - before.X) * k), MathF.Round(before.Y + (after.Y - before.Y) * k));
+        }
+        if (before is not null && t - before.T <= 3f) return (before.X, before.Y);
+        if (after is not null && after.T - t <= 3f) return (after.X, after.Y);
+        return null;
+    }
+
+    private void AddPathPoint(uint pawn, float x, float y, bool inAir)
+    {
+        if (!_pawnPaths.TryGetValue(pawn, out var path)) _pawnPaths[pawn] = path = new List<PathPoint>();
+        if (path.Count > 0)
+        {
+            var last = path[^1];
+            float dx = x - last.X, dy = y - last.Y;
+            if (Now - last.T < 1f && dx * dx + dy * dy < 1500f * 1500f) return;
+        }
+        path.Add(new PathPoint { T = MathF.Round(Now, 1), X = MathF.Round(x), Y = MathF.Round(y), Air = inAir });
+    }
     private readonly Dictionary<uint, int> _playerStateToPlayerId = new();
 
     // Treasure prize handler abilities ("GA_TreasureHandler_*"): class netguid -> name.
@@ -517,11 +560,12 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
                 }
                 break;
 
-            case PlayerPawn pawn when pawn.PlayerState is uint ps && ps != 0:
+            case PlayerPawn pawn:
                 var pawnId = Channels[channelIndex]?.ActorId;
                 if (pawnId != null)
                 {
-                    _pawnToPlayerState[pawnId.Value] = ps;
+                    if (pawn.PlayerState is uint ps && ps != 0) _pawnToPlayerState[pawnId.Value] = ps;
+                    if (pawn.ReplicatedMovement?.Location is { } at) AddPathPoint(pawnId.Value, (float)at.X, (float)at.Y, pawn.bIsSkydiving == true || pawn.bIsParachuteOpen == true);
                 }
                 break;
 
@@ -540,9 +584,13 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
     /// Parses <paramref name="file"/> and returns what the tracked player did with chests.
     /// </summary>
     /// <param name="username">Epic display name to track. If null/empty or not found, the replay owner is used.</param>
+    /// <summary>The whole replay from the last <see cref="Analyze"/> call (paths, storm, bus, eliminations).</summary>
+    public FortniteReplayReader.Models.FortniteReplay? LastReplay { get; private set; }
+
     public MatchRecord Analyze(Stream stream, string file, string? username)
     {
         var replay = ReadReplay(stream);
+        LastReplay = replay;
 
         if (Environment.GetEnvironmentVariable("CHESTCOUNTER_DEBUG") == "4")
         {
@@ -631,8 +679,8 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
                 Kind = search.Kind,
                 Blueprint = search.Label,
                 Destroyed = search.Destroyed,
-                X = search.Where?.X ?? where?.X,
-                Y = search.Where?.Y ?? where?.Y,
+                X = search.Where?.X ?? where?.X ?? PositionAt(targetPawns, search.Time)?.X,
+                Y = search.Where?.Y ?? where?.Y ?? PositionAt(targetPawns, search.Time)?.Y,
                 Items = items,
                 TreasureItems = items.Where(i => TreasureItem.IsMatch(i) && !EventItem.IsMatch(i)).ToList(),
             });
@@ -751,10 +799,12 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
                             Kind = ChestKinds.Classify(x.Label),
                             Blueprint = x.Label,
                             Destroyed = x.Destroyed,
-                            X = x.Where?.X,
-                            Y = x.Where?.Y,
+                            X = x.Where?.X ?? PositionAt(x.SearcherPawn, x.Time)?.X,
+                            Y = x.Where?.Y ?? PositionAt(x.SearcherPawn, x.Time)?.Y,
                         }).ToList(),
                     AmmoBoxes = mateSearches.Count(x => ChestKinds.Classify(x.Label) == ChestKinds.AmmoBox),
+                    // The game only sends KillScore once it changes, so a player state without one means no kills yet.
+                    Kills = (int)(mate.Kills ?? 0),
                 });
             }
         }
@@ -914,6 +964,8 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
             });
         }
 
+        var (myPath, busLine, storm, marks, othersChests) = MatchMap(replay, players, target, targetPawns, teammatePawns);
+
         teamFinds.Sort((a, b) => (a.ObtainedAtSeconds ?? float.MaxValue).CompareTo(b.ObtainedAtSeconds ?? float.MaxValue));
         finds.Sort((a, b) => (a.ObtainedAtSeconds ?? float.MaxValue).CompareTo(b.ObtainedAtSeconds ?? float.MaxValue));
 
@@ -950,7 +1002,123 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
             TeamTreasureFinds = teamFinds,
             Teammates = teammates,
             SeenPrizes = seenPrizes,
+            Path = myPath,
+            BusLine = busLine,
+            Storm = storm,
+            Marks = marks,
+            OthersChests = othersChests,
         };
+    }
+
+    /// <summary>Patch 20: your path, the bus, the storm, your knocks and eliminations, and chests others opened near you.</summary>
+    private (List<PathPoint>, float[]?, List<StormCircle>, List<MapMark>, List<SeenChest>) MatchMap(
+        FortniteReplay replay, List<PlayerData> players, PlayerData? target, HashSet<uint> targetPawns, Dictionary<uint, string> teammatePawns)
+    {
+        var path = targetPawns.Where(_pawnPaths.ContainsKey).SelectMany(p => _pawnPaths[p]).OrderBy(p => p.T).ToList();
+
+        // Before the match you're on the pre-game island, then on the bus (no pawn, so a gap in the path). Start the
+        // path where you jumped: after the last long gap in the first few minutes, before your first chest.
+        float firstChest = _searches.Where(s => s.SearcherPawn is uint sp && targetPawns.Contains(sp)).Select(s => s.Time).DefaultIfEmpty(float.MaxValue).Min();
+        float? busLeft = null;
+        int cut = 0;
+        for (int i = 1; i < path.Count && path[i].T <= Math.Min(firstChest, 240f); i++)
+        {
+            if (path[i].T - path[i - 1].T >= 10f) { busLeft = path[i - 1].T; cut = i; }
+        }
+        if (cut > 0) path.RemoveRange(0, cut);
+        if (path.Count > 0) path[0].Air = true;
+
+        // Bus: everyone appears in the air on the bus route when they jump. Their first points in the two minutes
+        // after the bus left lie along a line (fitted through them, principal axis), and earlier jumps are nearer its start.
+        float[]? bus = null;
+        if (busLeft is float left)
+        {
+            var jumps = _pawnPaths.Values.Select(p => p.FirstOrDefault(q => q.T > left + 1f))
+                .Where(q => q is not null && q.T <= left + 120f).Select(q => q!).ToList();
+            if (jumps.Count >= 6)
+            {
+                // Players who only came near you later (already on the ground) aren't on the line: fit, keep the
+                // points closest to the line, fit again.
+                double mx = 0, my = 0, dx = 1, dy = 0;
+                void Fit(List<PathPoint> pts)
+                {
+                    mx = pts.Average(p => p.X); my = pts.Average(p => p.Y);
+                    double sxx = 0, syy = 0, sxy = 0;
+                    foreach (var q in pts) { sxx += (q.X - mx) * (q.X - mx); syy += (q.Y - my) * (q.Y - my); sxy += (q.X - mx) * (q.Y - my); }
+                    double angle = 0.5 * Math.Atan2(2 * sxy, sxx - syy);
+                    dx = Math.Cos(angle); dy = Math.Sin(angle);
+                }
+                Fit(jumps);
+                for (int round = 0; round < 2; round++)
+                {
+                    jumps = jumps.OrderBy(q => Math.Abs(-(q.X - mx) * dy + (q.Y - my) * dx)).Take(Math.Max(6, (int)(jumps.Count * 0.7))).ToList();
+                    Fit(jumps);
+                }
+                double along = 0, across = 0, corr = 0, mt = jumps.Average(q => q.T);
+                foreach (var q in jumps)
+                {
+                    double u = (q.X - mx) * dx + (q.Y - my) * dy, v = -(q.X - mx) * dy + (q.Y - my) * dx;
+                    along += u * u; across += v * v; corr += u * (q.T - mt);
+                }
+                if (corr < 0) { dx = -dx; dy = -dy; }   // point it the way the bus flew
+                // Spread across the line must be small compared with along it, or it isn't a line.
+                if (along > 15 * across)
+                {
+                    const double half = 200000;   // further than the island in both directions; the map clips it
+                    bus = new[] { (float)(mx - dx * half), (float)(my - dy * half), (float)(mx + dx * half), (float)(my + dy * half) };
+                }
+            }
+        }
+
+        var storm = new List<StormCircle>();
+        foreach (var z in replay.MapData?.SafeZones ?? new List<FortniteReplayReader.Models.SafeZone>())
+        {
+            if (z.NextCenter is null || z.NextRadius <= 0) continue;
+            var c = new StormCircle { X = (float)z.NextCenter.X, Y = (float)z.NextCenter.Y, Radius = z.NextRadius, ShrinkStart = z.StartShrinkTime, ShrinkEnd = z.FinishShrinkTime };
+            if (storm.Any(o => Math.Abs(o.Radius - c.Radius) < 1 && Math.Abs(o.X - c.X) < 1 && Math.Abs(o.Y - c.Y) < 1)) continue;
+            storm.Add(c);
+        }
+
+        var marks = new List<MapMark>();
+        if (target?.Id is int me)
+        {
+            MapMark? died = null;
+            foreach (var k in replay.KillFeed ?? new List<FortniteReplayReader.Models.KillFeedEntry>())
+            {
+                if (k.IsRevived || k.DeathLocation is not { } at || (Math.Abs(at.X) < 1 && Math.Abs(at.Y) < 1)) continue;
+                string? kind = k.FinisherOrDowner == me && k.PlayerId != me ? (k.IsDowned ? "knock" : "elim")
+                             : k.PlayerId == me ? (k.IsDowned ? "knocked" : "died")
+                             : null;
+                if (kind is null) continue;
+                var otherId = kind is "knock" or "elim" ? k.PlayerId : k.FinisherOrDowner;
+                var other = otherId is int oid ? players.FirstOrDefault(p => p.Id == oid) : null;
+                var mark = new MapMark
+                {
+                    Kind = kind, X = MathF.Round((float)at.X), Y = MathF.Round((float)at.Y),
+                    Other = other?.Id == me ? null : other?.PlayerName, OtherIsBot = other?.IsBot == true || (kind is "knock" or "elim" ? k.PlayerIsBot : k.FinisherOrDownerIsBot),
+                };
+                if (kind == "died") died = mark;   // only the last one (reboots aside, you're eliminated once)
+                else marks.Add(mark);
+            }
+            if (died is not null) marks.Add(died);
+        }
+
+        // Chests opened by players outside your team that the replay saw happen (not ones already opened when you got there).
+        var others = new List<SeenChest>();
+        var chestSearches = _searches.Where(s => !s.Stale && ChestKinds.IsChest(ChestKinds.Classify(s.Label))).ToList();
+        foreach (var s in chestSearches)
+        {
+            if (s.SearcherPawn is not uint who || targetPawns.Contains(who) || teammatePawns.ContainsKey(who)) continue;
+            var at = s.Where ?? PositionAt(who, s.Time);
+            if (at is null && chestSearches.Count(o => Math.Abs(o.Time - s.Time) < 1f) == 1
+                && _tosses.FirstOrDefault(t => t.Time >= s.Time - 0.25f && t.Time <= s.Time + 0.6f && t.X != null) is { } toss)
+                at = (toss.X!.Value, toss.Y!.Value);
+            if (at is not { } p) continue;
+            // close to where you went (within about 100 m of your path)
+            if (path.Count > 0 && !path.Any(q => (q.X - p.X) * (q.X - p.X) + (q.Y - p.Y) * (q.Y - p.Y) < 10000f * 10000f)) continue;
+            others.Add(new SeenChest { T = MathF.Round(s.Time, 1), X = MathF.Round(p.X), Y = MathF.Round(p.Y), Destroyed = s.Destroyed });
+        }
+        return (path, bus, storm, marks, others);
     }
 }
 

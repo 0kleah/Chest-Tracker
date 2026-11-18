@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -6,12 +6,13 @@
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>ChestTracker</AssemblyName>
     <RootNamespace>ChestTracker</RootNamespace>
     <ApplicationIcon>chest.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>3.3.0</Version>
+    <Version>3.5.0</Version>
     <Product>Chest Tracker</Product>
     <Description>Counts the chests you open in Fortnite and shows your Pirate Token odds.</Description>
     <Copyright>Copyright (c) 2026 0kleah. MIT License.</Copyright>

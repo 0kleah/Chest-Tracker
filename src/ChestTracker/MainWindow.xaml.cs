@@ -47,12 +47,13 @@ public partial class MainWindow : Window
         _app.Tracker.MatchCounted += (r, added) => Dispatcher.BeginInvoke(() => OnMatchCounted(r, added));
         _app.OverlayLockToggleRequested += () => Dispatcher.BeginInvoke(() => SetOverlayLocked(!_app.Settings.OverlayLocked));
         _app.OnlineChanged += () => Dispatcher.BeginInvoke(() => { RefreshStatus(); RefreshVisiblePage(); });
+        DataFile.SaveProblemChanged += () => Dispatcher.BeginInvoke(RefreshStatus);
 
         _liveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _liveTimer.Tick += (_, _) =>
         {
             _app.TickTreasure();
-            if (WindowState == WindowState.Minimized) return;
+            if (WindowState == WindowState.Minimized || !IsVisible) return;
             RefreshStatus();
             if (TreasurePage.Visibility == Visibility.Visible) RefreshCountdown();
         };
@@ -85,33 +86,34 @@ public partial class MainWindow : Window
         {
             _app.Tracker.Stop();
             _overlay?.Close();
+            _mapRoutes?.Stop();
             _tray?.Dispose();
             _tray = null;
         };
     }
 
+    bool _started;
+
     void OnLoaded(object sender, RoutedEventArgs e)
     {
+        if (_started) return;   // once (a window started in the tray gets going before it's first shown)
+        _started = true;
         LoadSettingsIntoControls();
         LoadLookIntoControls();
         _ready = true;
         RefreshCounts();
         RefreshStatus();
         RecalculateOdds();
-        if (_app.Settings.OverlayEnabled) ShowOverlay();
+        // With "Start and stop with Fortnite", the overlay waits until Fortnite is running.
+        if (_app.Settings.OverlayEnabled && (!_app.Settings.FollowFortnite || Win32.FortniteRunning())) ShowOverlay();
         if (_app.Settings.AutoStart) _app.Tracker.Start();
         _ = _app.RefreshOnlineAsync();
         SetUpBackground();
+        SetUpMapRoutes();
 
-        // ChestTracker.exe --page odds|settings opens straight to that page
-        var args = Environment.GetCommandLineArgs();
-        int i = Array.IndexOf(args, "--page");
-        if (i >= 0 && i + 1 < args.Length)
-            (args[i + 1].ToLowerInvariant() switch
-            {
-                "odds" => NavOdds, "settings" => NavSettings, "stats" => NavStats, "map" => NavMap, "treasure" => NavTreasure,
-                "matches" => NavMatches, "finds" => NavFinds, "squad" => NavSquad, _ => NavHome,
-            }).IsChecked = true;
+#if DEBUG
+        StartDevChecks();   // development checks only (Debug builds): --page, --shots
+#endif
     }
 
     // ================================================================== refresh
@@ -130,7 +132,7 @@ public partial class MainWindow : Window
         if (_app.ShowSquadTotal)
             SquadHomeText.Text = $"With your squad: {_app.TotalWithSquad:N0} chests  (you {total:N0} + squad {_app.Squad.TotalChests:N0})";
         SessionHomeText.Text = $"This session: {_app.SessionChests:N0} chest{(_app.SessionChests == 1 ? "" : "s")} in {_app.SessionMatches} match{(_app.SessionMatches == 1 ? "" : "es")}"
-                               + (_app.SessionStart.Date == DateTime.Today ? $" (since {_app.SessionStart:h:mm tt})" : $" (since {_app.SessionStart:ddd h:mm tt})");
+                               + (_app.SessionStart.Date == DateTime.Today ? $" (since {_app.SessionStart:t})" : $" (since {_app.SessionStart:ddd} {_app.SessionStart:t})");
         ChanceText.Text = Odds.Percent(chance);
         OneInText.Text = Odds.OneIn(chance);
 
@@ -148,7 +150,7 @@ public partial class MainWindow : Window
         var rows = _app.Store.Recent(6).Select(r =>
         {
             string when = r.Entry.When is DateTime t
-                ? (t.Date == DateTime.Today ? t.ToString("h:mm tt") : t.ToString("MMM d, h:mm tt"))
+                ? (t.Date == DateTime.Today ? t.ToString("t") : $"{t:MMM d}, {t:t}")
                 : "";
             if (r.Entry.Source == "bulk")
                 return new RecentRow($"+{r.Entry.Chests:N0} chests", $"{when} · previous count, added by you",
@@ -200,7 +202,10 @@ public partial class MainWindow : Window
             _ => LastMatchText(),
         };
 
-        if (t.Error is string err)
+        string? saveProblem = DataFile.SaveProblem is string sp
+            ? $"{sp} Your newest chests are kept in memory and saved as soon as the file can be written again. If this stays, check that the folder isn't read-only or full."
+            : null;
+        if ((saveProblem ?? t.Error) is string err)
         {
             ErrorBanner.Visibility = Visibility.Visible;
             ErrorText.Text = err;
@@ -222,18 +227,22 @@ public partial class MainWindow : Window
     {
         var now = DateTime.UtcNow;
         if (_app.AutoHourNow is { } h)
-            return $"On automatically until {h.EndUtc.ToLocalTime():h:mm tt} ({h.Pirate:0.##}x token odds) · F9 to switch off";
-        if (_app.TreasureMode) return "Switched on by hand · F9 to switch off";
+        {
+            string key = TreasureKey();
+            return $"On automatically until {h.EndUtc.ToLocalTime():t} ({h.Pirate:0.##}x token odds){(key.Length > 0 ? $" · {key} to switch off" : "")}";
+        }
+        string k = TreasureKey();
+        if (_app.TreasureMode) return $"Switched on by hand{(k.Length > 0 ? $" · {k} to switch off" : "")}";
         if (_app.Settings.AutoTreasure && _app.Treasure.NextHour(now) is { } next)
-            return $"Turns on by itself {When(next.StartUtc.ToLocalTime())} · F9 to switch it by hand";
-        return "Turn on during Treasure Hours · F9";
+            return $"Turns on by itself {When(next.StartUtc.ToLocalTime())}{(k.Length > 0 ? $" · {k} to switch it by hand" : "")}";
+        return $"Turn on during Treasure Hours{(k.Length > 0 ? $" · {k}" : "")}";
     }
 
     /// <summary>"today at 7:00 PM", "Sat 21 Nov at 7:00 PM".</summary>
     static string When(DateTime local) =>
-        local.Date == DateTime.Today ? $"today at {local:h:mm tt}"
-        : local.Date == DateTime.Today.AddDays(1) ? $"tomorrow at {local:h:mm tt}"
-        : $"{local:ddd d MMM} at {local:h:mm tt}";
+        local.Date == DateTime.Today ? $"today at {local:t}"
+        : local.Date == DateTime.Today.AddDays(1) ? $"tomorrow at {local:t}"
+        : $"{local:ddd d MMM} at {local:t}";
 
     void OnMatchCounted(ReplayResult r, int added)
     {
@@ -243,7 +252,19 @@ public partial class MainWindow : Window
         var parts = new List<string> { $"+{added} chest{(added == 1 ? "" : "s")}" };
         if (sprite > 0) parts.Add($"{sprite} sprite");
         if (r.Broken > 0) parts.Add($"{r.Broken} broken open");
-        _overlay?.ShowToast(string.Join(" · ", parts));
+        string text = string.Join(" · ", parts);
+        if (_app.Settings.SummaryTeammates && SquadLine(r.Record) is { Length: > 0 } squad) text += "\n" + squad;
+        _overlay?.ShowToast(text);
+    }
+
+    /// <summary>"Squad: Ben 7 · Sam 4 · bot 2" (chests the replay saw each teammate open), or "" when solo.</summary>
+    static string SquadLine(ChestCounter.MatchRecord rec)
+    {
+        var mates = rec.Teammates.Where(m => !string.IsNullOrWhiteSpace(m.Name) || m.IsBot)
+            .OrderByDescending(m => m.Chests.Count).ToList();
+        if (mates.Count == 0) return "";
+        string Short(string name) => name.Length > 14 ? name[..13] + "…" : name;
+        return "Squad: " + string.Join(" · ", mates.Select(m => $"{(m.IsBot && string.IsNullOrWhiteSpace(m.Name) ? "bot" : Short(m.Name))} {m.Chests.Count}"));
     }
 
     void Update_Click(object sender, RoutedEventArgs e) =>
@@ -253,7 +274,7 @@ public partial class MainWindow : Window
     {
         var e = _app.Ledger.LastCounted();
         if (e is null) return "Play a match. When it ends, its chests are added here.";
-        var when = e.MatchStartUtc?.ToLocalTime().ToString("h:mm tt") ?? "";
+        var when = e.MatchStartUtc?.ToLocalTime().ToString("t") ?? "";
         return $"Last match ({when}): {e.ChestsCounted} chest{(e.ChestsCounted == 1 ? "" : "s")} ({e.Opened} opened, {e.Broken} broken open)" +
                (e.AmmoBoxes > 0 ? $", {e.AmmoBoxes} ammo box{(e.AmmoBoxes == 1 ? "" : "es")} not counted" : "");
     }
@@ -264,7 +285,7 @@ public partial class MainWindow : Window
             .OrderByDescending(e => e.MatchStartUtc).Take(8).Select(e =>
             {
                 var t = e.MatchStartUtc!.Value.ToLocalTime();
-                string when = t.Date == DateTime.Today ? "Today " + t.ToString("h:mm tt") : t.ToString("MMM d, h:mm tt");
+                string when = t.Date == DateTime.Today ? "Today " + t.ToString("t") : $"{t:MMM d}, {t:t}";
                 string what = e.Note is string note ? $"not counted: {note}"
                     : $"{e.ChestsCounted} chest{(e.ChestsCounted == 1 ? "" : "s")} ({e.Opened} opened, {e.Broken} broken open)" +
                       (e.AmmoBoxes > 0 ? $" · {e.AmmoBoxes} ammo box{(e.AmmoBoxes == 1 ? "" : "es")} ignored" : "");
@@ -284,18 +305,19 @@ public partial class MainWindow : Window
     void Nav_Checked(object sender, RoutedEventArgs e)
     {
         if (HomePage is null || OddsPage is null || SettingsPage is null || StatsPage is null || MapPage is null || TreasurePage is null
-            || MatchesPage is null || FindsPage is null || SquadPage is null) return;
+            || MatchesPage is null || FindsPage is null || SquadPage is null || RoutesPage is null) return;
         static Visibility V(RadioButton b) => b.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         HomePage.Visibility = V(NavHome);
         StatsPage.Visibility = V(NavStats);
         MapPage.Visibility = V(NavMap);
         TreasurePage.Visibility = V(NavTreasure);
         MatchesPage.Visibility = V(NavMatches);
+        RoutesPage.Visibility = V(NavRoutes);
         FindsPage.Visibility = V(NavFinds);
         SquadPage.Visibility = V(NavSquad);
         OddsPage.Visibility = V(NavOdds);
         SettingsPage.Visibility = V(NavSettings);
-        if (MapPage.Visibility != Visibility.Visible && MatchesPage.Visibility != Visibility.Visible) ReleaseMap();
+        if (MapPage.Visibility != Visibility.Visible && MatchesPage.Visibility != Visibility.Visible && RoutesPage.Visibility != Visibility.Visible) ReleaseMap();
         if (TreasurePage.Visibility == Visibility.Visible && (_app.Status is null || DateTime.UtcNow - _app.Status.FetchedUtc > TimeSpan.FromMinutes(5)))
             _ = _app.RefreshStatusAsync();
         RefreshVisiblePage();
@@ -308,6 +330,7 @@ public partial class MainWindow : Window
         else if (MapPage.Visibility == Visibility.Visible) _ = RefreshMapAsync();
         else if (TreasurePage.Visibility == Visibility.Visible) RefreshTreasure();
         else if (MatchesPage.Visibility == Visibility.Visible) RefreshMatchHistory();
+        else if (RoutesPage.Visibility == Visibility.Visible) RefreshRoutes();
         else if (FindsPage.Visibility == Visibility.Visible) RefreshFinds();
         else if (SquadPage.Visibility == Visibility.Visible) RefreshSquad();
     }
@@ -395,7 +418,6 @@ public partial class MainWindow : Window
     public void BringToFront()
     {
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
-        Opacity = 1;
         Show();
         Activate();
         RefreshCounts();
@@ -461,6 +483,9 @@ public partial class MainWindow : Window
         AutoTreasureSwitch.IsChecked = s.AutoTreasure;
         UpdatesSwitch.IsChecked = s.CheckUpdates;
         SummarySwitch.IsChecked = s.MatchSummary;
+        SummaryMatesSwitch.IsChecked = s.SummaryTeammates;
+        SummaryMatesSwitch.IsEnabled = s.MatchSummary;
+        ShowHotkeys();
         OverlaySwitch.IsChecked = s.OverlayEnabled;
         LockSwitch.IsChecked = s.OverlayLocked;
         var op = new[] { (Op60, 0.6), (Op75, 0.75), (Op92, 0.92), (Op100, 1.0) }
@@ -472,7 +497,13 @@ public partial class MainWindow : Window
 
     void AutoStartSwitch_Click(object sender, RoutedEventArgs e) { _app.Settings.AutoStart = AutoStartSwitch.IsChecked == true; Save(); }
     void BeepSwitch_Click(object sender, RoutedEventArgs e) { _app.Settings.Beep = BeepSwitch.IsChecked == true; Save(); }
-    void SummarySwitch_Click(object sender, RoutedEventArgs e) { _app.Settings.MatchSummary = SummarySwitch.IsChecked == true; Save(); }
+    void SummarySwitch_Click(object sender, RoutedEventArgs e)
+    {
+        _app.Settings.MatchSummary = SummarySwitch.IsChecked == true;
+        SummaryMatesSwitch.IsEnabled = _app.Settings.MatchSummary;
+        Save();
+    }
+    void SummaryMatesSwitch_Click(object sender, RoutedEventArgs e) { _app.Settings.SummaryTeammates = SummaryMatesSwitch.IsChecked == true; Save(); }
     void AutoTreasureSwitch_Click(object sender, RoutedEventArgs e) => _app.SetAutoTreasure(AutoTreasureSwitch.IsChecked == true);
 
     void UpdatesSwitch_Click(object sender, RoutedEventArgs e)

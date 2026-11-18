@@ -17,11 +17,15 @@ public sealed class AppSettings
     public bool CheckUpdates { get; set; } = true;
     /// <summary>Show a short summary on the overlay when a match is counted.</summary>
     public bool MatchSummary { get; set; } = true;
+    /// <summary>The match summary also lists each teammate's chests.</summary>
+    public bool SummaryTeammates { get; set; } = true;
 
     // Background / Windows
     /// <summary>Closing the window keeps Chest Tracker counting in the system tray.</summary>
     public bool TrayMode { get; set; }
     public bool StartWithWindows { get; set; }
+    /// <summary>The overlay comes up when Fortnite starts and goes away after it closes (waits in the tray in between).</summary>
+    public bool FollowFortnite { get; set; }
     /// <summary>A Windows notification 10 minutes before a Treasure Hour, and when it starts.</summary>
     public bool Reminders { get; set; }
 
@@ -30,6 +34,31 @@ public sealed class AppSettings
     public bool SquadTracking { get; set; }
     /// <summary>Show "with your squad" (your chests + your teammates') under your count, on Home and the overlay.</summary>
     public bool SquadInTotal { get; set; }
+    /// <summary>Matches page: show each teammate's chests and eliminations for the picked match.</summary>
+    public bool MatchTeammates { get; set; } = true;
+    /// <summary>Layers on a match's map (Matches page).</summary>
+    public bool LayerPath { get; set; } = true;
+    public bool LayerBus { get; set; } = true;
+    public bool LayerStorm { get; set; } = true;
+    public bool LayerMarks { get; set; } = true;
+    public bool LayerMates { get; set; } = true;
+    public bool LayerOthers { get; set; } = true;
+    /// <summary>The match map zooms in on where you went (off: the whole island).</summary>
+    public bool MatchCloseUp { get; set; } = true;
+    /// <summary>Draw a route over the Fortnite map when you press your map key. Off until you switch it on: it's the
+    /// one feature that looks at the screen (only while the in-game map is open).</summary>
+    public bool MapOverlay { get; set; }
+    /// <summary>Your Fortnite map key (Windows key code; 0x4D = M).</summary>
+    public int MapKey { get; set; } = 0x4D;
+    /// <summary>Controller button that opens the map (XInput bit; 0 = none). View (Back) is Fortnite's default.</summary>
+    public int MapPadButton { get; set; } = 0x0020;
+    /// <summary>Chest Tracker's own keys (virtual-key codes; 0 = no key). F6 to F9 by default.</summary>
+    public int HotkeyLock { get; set; } = 0x75;
+    public int HotkeyAdd { get; set; } = 0x76;
+    public int HotkeyUndo { get; set; } = 0x77;
+    public int HotkeyTreasure { get; set; } = 0x78;
+    /// <summary>The match whose route is drawn on the Fortnite map (null = your best route).</summary>
+    public string? MapOverlayMatch { get; set; }
 
     // Overlay content and size
     public double OverlayScale { get; set; } = 1.0;
@@ -61,21 +90,36 @@ public sealed class AppSettings
 
     static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
-    public static AppSettings Load(string path)
+    public static Loaded<AppSettings> Load(string path) =>
+        DataFile.Load(path, json => JsonSerializer.Deserialize<AppSettings>(json)?.Checked(), () => new AppSettings());
+
+    /// <summary>Puts values a hand-edited or damaged file could hold back into range.</summary>
+    AppSettings Checked()
     {
-        try
-        {
-            if (File.Exists(path))
-                return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path)) ?? new AppSettings();
-        }
-        catch (Exception) { }
-        return new AppSettings();
+        if (!(Boost > 0) || double.IsInfinity(Boost)) Boost = Odds.DefaultBoost;
+        if (!(OverlayScale > 0) || double.IsInfinity(OverlayScale)) OverlayScale = 1.0;
+        if (!(OverlayOpacity > 0) || double.IsNaN(OverlayOpacity)) OverlayOpacity = 0.92;
+        OverlayOpacity = Math.Clamp(OverlayOpacity, 0.3, 1.0);
+        if (MapKey is <= 0 or >= 256) MapKey = 0x4D;
+        if (MapPadButton is < 0 or > 0xFFFF || (MapPadButton & (MapPadButton - 1)) != 0) MapPadButton = 0x0020;
+        if (HotkeyLock is < 0 or >= 256) HotkeyLock = 0x75;
+        if (HotkeyAdd is < 0 or >= 256) HotkeyAdd = 0x76;
+        if (HotkeyUndo is < 0 or >= 256) HotkeyUndo = 0x77;
+        if (HotkeyTreasure is < 0 or >= 256) HotkeyTreasure = 0x78;
+        AccentColor ??= Palette.DefaultAccent;
+        BackgroundColor ??= Palette.DefaultBackground;
+        CardColor ??= Palette.DefaultCard;
+        TextColor ??= Palette.DefaultText;
+        OverlayColor ??= Palette.DefaultOverlay;
+        OverlayTextColor ??= Palette.DefaultText;
+        return this;
     }
+
+    readonly object _saveGate = new();
 
     public void Save(string path)
     {
-        try { File.WriteAllText(path, JsonSerializer.Serialize(this, JsonOpts)); }
-        catch (IOException) { }
+        lock (_saveGate) DataFile.Save(path, JsonSerializer.Serialize(this, JsonOpts));
     }
 }
 

@@ -61,20 +61,48 @@ public sealed class Tracker
 
     void InputLoop()
     {
-        var hotkeys = new (int Vk, Action Run)[]
+        // Your own keys (F6 to F9 unless changed in Settings), read again each time so a change works straight away.
+        var hotkeys = new (Func<int> Vk, Action Run)[]
         {
-            (0x75, _app.RequestOverlayLockToggle),   // F6
-            (0x76, () => _app.AddChest("manual")),   // F7
-            (0x77, _app.Undo),                       // F8
-            (0x78, _app.ToggleTreasure),             // F9
+            (() => _app.Settings.HotkeyLock, _app.RequestOverlayLockToggle),
+            (() => _app.Settings.HotkeyAdd, () => _app.AddChest("manual")),
+            (() => _app.Settings.HotkeyUndo, _app.Undo),
+            (() => _app.Settings.HotkeyTreasure, _app.ToggleTreasure),
         };
         var wasDown = new bool[hotkeys.Length];
+        bool mapWas = false, escWas = false, padMapWas = false, padBackWas = false;
         while (true)
         {
+            // your map key and Escape (only used for drawing your route on the Fortnite map)
+            int mapKey = _app.Settings.MapKey;
+            bool mapDown = mapKey is > 0 and < 256 && !Hotkeys.IsOwn(_app.Settings, mapKey) && Win32.KeyDown(mapKey);
+            if (mapDown && !mapWas) { try { _app.OnMapKey(); } catch (Exception) { } }
+            mapWas = mapDown;
+            bool escDown = Win32.KeyDown(0x1B);
+            if (escDown && !escWas) { try { _app.OnEscape(); } catch (Exception) { } }
+            escWas = escDown;
+
+            // the same on a controller: its map button (View unless changed) opens, B closes
+            int padButton = _app.Settings.MapPadButton;
+            if ((_app.Settings.MapOverlay && padButton != 0) || Gamepad.Listening)
+            {
+                int held = Gamepad.Held();
+                Gamepad.LastHeld = held;
+                bool padMap = padButton != 0 && (held & padButton) != 0 && !Gamepad.Listening;
+                if (padMap && !padMapWas) { try { _app.OnMapKey(); } catch (Exception) { } }
+                padMapWas = padMap;
+                bool padBack = padButton != Gamepad.B && (held & Gamepad.B) != 0 && !Gamepad.Listening;
+                if (padBack && !padBackWas) { try { _app.OnEscape(); } catch (Exception) { } }
+                padBackWas = padBack;
+            }
+
             for (int i = 0; i < hotkeys.Length; i++)
             {
-                bool d = Win32.KeyDown(hotkeys[i].Vk);
-                if (d && !wasDown[i])
+                int vk = hotkeys[i].Vk();
+                bool d = vk is > 0 and < 256 && Win32.KeyDown(vk);
+                // Only while Fortnite or Chest Tracker is in front: F7 to F9 change your count, and the same keys are
+                // used by browsers and other programs, where a press must not add or remove chests behind your back.
+                if (d && !wasDown[i] && (Win32.FortniteFocused() || Win32.OwnWindowFocused()))
                 {
                     try { hotkeys[i].Run(); } catch (Exception) { }
                 }
@@ -219,14 +247,16 @@ public sealed class Tracker
 
     // ------------------------------------------------------------------ details from replays (map, finds, matches, squad)
 
+    /// <summary>Bump to read every saved replay once more for new details (3.3: golden prizes seen, party; 3.4: teammates' chests
+    /// and kills; 3.5: the match map: your path, bus, storm, eliminations, teammates' and others' chests).</summary>
+    public const int DetailsVersion = 4;
+
     /// <summary>
     /// Reads older replays Fortnite still has, for anything not saved yet: chest positions (map), what you found
-    /// (Finds), placement and eliminations (Matches) and, if squad tracking is on, your teammates. A few replays per
-    /// pass so new matches are never held up. Returns true while there is more to do.
+    /// (Finds), placement and eliminations (Matches), teammates and, if squad tracking is on, squad totals. A few
+    /// replays per pass, at low priority, and it stops as soon as a new match starts so the game never has to share
+    /// the PC with it. Returns true while there is more to do.
     /// </summary>
-    /// <summary>Bump to read every saved replay once more for new details (3.3: golden prizes seen, party).</summary>
-    public const int DetailsVersion = 2;
-
     bool EnrichOlder(int maxReplays)
     {
         bool squad = _app.Settings.SquadTracking;
@@ -235,7 +265,7 @@ public sealed class Tracker
             .OrderByDescending(e => e.MatchStartUtc ?? DateTime.MinValue)
             .ToList();
         if (todo.Count == 0) return false;
-        bool changed = false;
+        bool changed = false, stopped = false;
         int read = 0;
         foreach (var e in todo)
         {
@@ -245,11 +275,11 @@ public sealed class Tracker
                             && e.Note is not ("not a Battle Royale match" or "someone else's replay");
             if (readable)
             {
-                if (read >= maxReplays) break;
+                if (read >= maxReplays || MatchStarted()) { stopped = true; break; }
                 read++;
                 try
                 {
-                    var r = ReplayChests.Analyze(path);
+                    var r = Gently(() => ReplayChests.Analyze(path), ThreadPriority.Lowest);
                     ApplyDetails(e, r, details: !e.DetailsTried || e.DetailsVersion < DetailsVersion, squad: needSquad);
                     changed = true;
                 }
@@ -262,7 +292,28 @@ public sealed class Tracker
         _app.Ledger.Save();
         Memory.Trim();
         if (changed) _app.NotifyCountsChanged();
-        return todo.Count > read && read >= maxReplays;
+        return stopped;
+    }
+
+    /// <summary>A match has started since the last scan (Fortnite is writing a new replay).</summary>
+    bool MatchStarted()
+    {
+        try
+        {
+            return new DirectoryInfo(ReplayChests.DemosFolder).GetFiles("*.replay")
+                .Any(f => !_app.Ledger.Has(f.Name) && DateTime.UtcNow - f.LastWriteTimeUtc < TimeSpan.FromMinutes(2));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    /// <summary>Runs replay reading at a lower priority, so Fortnite always comes first for the CPU.</summary>
+    static T Gently<T>(Func<T> work, ThreadPriority priority)
+    {
+        var thread = Thread.CurrentThread;
+        var before = thread.Priority;
+        try { thread.Priority = priority; } catch (Exception) { }
+        try { return work(); }
+        finally { try { thread.Priority = before; } catch (Exception) { } }
     }
 
     /// <summary>Saves what a replay says beyond the chest count: positions, finds, placement, teammates.</summary>
@@ -280,8 +331,19 @@ public sealed class Tracker
             if (r.Counts && !string.IsNullOrEmpty(rec.SessionId))
                 _app.Store.SetPositions(rec.SessionId, rec.Chests.OrderBy(c => c.TimeSeconds).Select(c => (c.X, c.Y)).ToList(), onlyMissing: true);
             if (rec.IsBattleRoyale && rec.IsReplayOwner) _app.Finds.AddFromReplay(rec);
+            if (r.Counts && !string.IsNullOrEmpty(rec.SessionId))
+            {
+                var map = MatchMap.From(rec);
+                if (map.HasAnything) _app.Maps.Save(rec.SessionId, map);
+            }
             entry.Prizes = rec.SeenPrizes.Count == 0 ? null : rec.SeenPrizes
                 .Select(p => new ReplayLedger.PrizeSeen { Who = p.Who, Player = p.PlayerName, PrizeId = p.PrizeId, TimeSeconds = p.TimeSeconds }).ToList();
+            entry.Mates = rec.Teammates.Where(m => !string.IsNullOrWhiteSpace(m.Name) || m.EpicId is not null)
+                .Select(m => new ReplayLedger.MateSeen
+                {
+                    Name = string.IsNullOrWhiteSpace(m.Name) ? "Teammate" : m.Name, Chests = m.Chests.Count,
+                    Broken = m.Chests.Count(c => c.Destroyed), Kills = m.Kills, Bot = m.IsBot, Party = m.InMyParty,
+                }).ToList();
         }
         if (squad && rec.IsBattleRoyale && rec.IsReplayOwner) _app.Squad.AddMatch(rec);
     }
@@ -290,7 +352,7 @@ public sealed class Tracker
     {
         var ledger = _app.Ledger;
         ReplayResult r;
-        try { r = ReplayChests.Analyze(f.FullName); }
+        try { r = Gently(() => ReplayChests.Analyze(f.FullName), ThreadPriority.BelowNormal); }
         catch (Exception e)
         {
             int n = _failures.GetValueOrDefault(f.Name) + 1;
@@ -346,7 +408,7 @@ public sealed class Tracker
             var path = Path.Combine(ReplayChests.DemosFolder, name);
             if (File.Exists(path))
             {
-                try { results.Add((name, await Task.Run(() => ReplayChests.Analyze(path)))); }
+                try { results.Add((name, await Task.Run(() => Gently(() => ReplayChests.Analyze(path), ThreadPriority.BelowNormal)))); }
                 catch (Exception) { }
             }
             progress?.Report((++done, older.Count));

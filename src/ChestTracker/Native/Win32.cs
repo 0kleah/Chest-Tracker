@@ -11,6 +11,19 @@ namespace ChestTracker.Native;
 /// </summary>
 internal static class Win32
 {
+    /// <summary>Is Fortnite running? Only looks at the list of running programs (by name), like Task Manager does.</summary>
+    public static bool FortniteRunning()
+    {
+        try
+        {
+            var found = System.Diagnostics.Process.GetProcessesByName("FortniteClient-Win64-Shipping");
+            bool any = found.Length > 0;
+            foreach (var p in found) p.Dispose();
+            return any;
+        }
+        catch (Exception) { return false; }
+    }
+
     // ---------------------------------------------------------------- keyboard / mouse buttons
     [DllImport("user32.dll")] static extern short GetAsyncKeyState(int vKey);
 
@@ -48,6 +61,13 @@ internal static class Win32
         _cachedPid = pid;
         _cachedIsFortnite = isFortnite;
         return isFortnite;
+    }
+
+    /// <summary>Is one of Chest Tracker's own windows the one in front?</summary>
+    public static bool OwnWindowFocused()
+    {
+        GetWindowThreadProcessId(GetForegroundWindow(), out uint pid);
+        return pid != 0 && pid == (uint)Environment.ProcessId;
     }
 
     // ---------------------------------------------------------------- cursor
@@ -103,6 +123,15 @@ internal static class Win32
 
     public static void KeepTopmost(IntPtr hwnd) =>
         SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+
+    /// <summary>Puts a window exactly over a screen area (physical pixels), on top, without activating it.</summary>
+    public static void PlaceTopmost(IntPtr hwnd, RECT r) =>
+        SetWindowPos(hwnd, HWND_TOPMOST, r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top, SWP_NOACTIVATE);
+
+    [DllImport("user32.dll")] static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint affinity);
+
+    /// <summary>Leaves a window out of screenshots and screen captures (it still shows on the monitor).</summary>
+    public static bool ExcludeFromCapture(IntPtr hwnd) => SetWindowDisplayAffinity(hwnd, 0x11 /* WDA_EXCLUDEFROMCAPTURE */);
 
     [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 

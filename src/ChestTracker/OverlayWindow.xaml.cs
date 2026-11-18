@@ -152,19 +152,25 @@ public partial class OverlayWindow : Window
         WarnBox.Visibility = _app.Tracker.ReplayWarning is null ? Visibility.Collapsed : Visibility.Visible;
 
         var t = _app.Tracker;
-        string key = t.State switch
+        if (t.State != _shownState || _slowTick % 12 == 1)
         {
-            TrackerState.InMatch => "Gold",
-            TrackerState.Reading => "Accent",
-            TrackerState.Waiting => "Green",
-            TrackerState.NoReplays => "Orange",
-            _ => "TextFaint",
-        };
-        StatusLine.Text = StatusText(_app);
-        var brush = (Brush)FindResource(key);
-        Dot.Fill = brush;
-        DotGlow.Fill = brush;
+            _shownState = t.State;
+            string key = t.State switch
+            {
+                TrackerState.InMatch => "Gold",
+                TrackerState.Reading => "Accent",
+                TrackerState.Waiting => "Green",
+                TrackerState.NoReplays => "Orange",
+                _ => "TextFaint",
+            };
+            StatusLine.Text = StatusText(_app);
+            var brush = (Brush)FindResource(key);
+            Dot.Fill = brush;
+            DotGlow.Fill = brush;
+        }
     }
+
+    TrackerState? _shownState;
 
     int _slowTick;
 
@@ -189,7 +195,7 @@ public partial class OverlayWindow : Window
         if (app.Treasure.NextHour(now) is not { } h) return "none announced";
         if (now >= h.StartUtc) return $"live · {h.Pirate:0.##}x";
         var left = h.StartUtc - now;
-        return left.TotalHours < 24 ? $"in {(int)left.TotalHours}h {left.Minutes:00}m" : h.StartUtc.ToLocalTime().ToString("ddd h:mm tt");
+        return left.TotalHours < 24 ? $"in {(int)left.TotalHours}h {left.Minutes:00}m" : h.StartUtc.ToLocalTime().ToString("ddd t");
     }
 
     /// <summary>One short line about tracking, shared with the main window.</summary>
@@ -240,8 +246,9 @@ public partial class OverlayWindow : Window
             if (through && Panel.ContextMenu is { IsOpen: true } menu) menu.IsOpen = false;
         }
         MoveOutline.Visibility = through ? Visibility.Collapsed : Visibility.Visible;
-        HintText.Text = _inGame || !_app.Settings.OverlayShowHint ? "" : _app.Settings.OverlayLocked ? "F6 to move"
-                      : _app.Settings.OverlayCompact ? "drag · right-click · F6" : "drag to move  ·  right-click for menu  ·  F6 lock";
+        string f6 = Hotkeys.Get(_app.Settings, Hotkeys.Action.Lock) is > 0 and < 256 ? Hotkeys.Name(_app.Settings, Hotkeys.Action.Lock) : "";
+        HintText.Text = _inGame || !_app.Settings.OverlayShowHint ? "" : _app.Settings.OverlayLocked ? (f6.Length > 0 ? $"{f6} to move" : "Settings → Lock overlay to move")
+                      : _app.Settings.OverlayCompact ? $"drag · right-click{(f6.Length > 0 ? " · " + f6 : "")}" : $"drag to move  ·  right-click for menu{(f6.Length > 0 ? $"  ·  {f6} lock" : "")}";
         HintText.Visibility = string.IsNullOrEmpty(HintText.Text) ? Visibility.Collapsed : Visibility.Visible;
     }
 
@@ -289,14 +296,15 @@ public partial class OverlayWindow : Window
             return mi;
         }
         var menu = new ContextMenu { Style = (Style)FindResource("DarkContextMenu") };
-        menu.Items.Add(Item(_app.TreasureMode ? "Turn off Treasure Hours" : "Turn on Treasure Hours", "F9", _app.ToggleTreasure));
-        menu.Items.Add(Item("Add a chest", "F7", () => _app.AddChest("manual")));
-        menu.Items.Add(Item("Undo last chest", "F8", _app.Undo));
+        string K(Hotkeys.Action a) => Hotkeys.Get(_app.Settings, a) is > 0 and < 256 ? Hotkeys.Name(_app.Settings, a) : "";
+        menu.Items.Add(Item(_app.TreasureMode ? "Turn off Treasure Hours" : "Turn on Treasure Hours", K(Hotkeys.Action.Treasure), _app.ToggleTreasure));
+        menu.Items.Add(Item("Add a chest", K(Hotkeys.Action.Add), () => _app.AddChest("manual")));
+        menu.Items.Add(Item("Undo last chest", K(Hotkeys.Action.Undo), _app.Undo));
         menu.Items.Add(new Separator { Style = (Style)FindResource("MenuSeparator") });
-        menu.Items.Add(Item("Lock in place", "F6", _app.RequestOverlayLockToggle));
+        menu.Items.Add(Item("Lock in place", K(Hotkeys.Action.Lock), _app.RequestOverlayLockToggle));
         menu.Items.Add(Item("Open Chest Tracker", "", () => (Application.Current.MainWindow as MainWindow)?.BringToFront()));
         menu.Items.Add(new Separator { Style = (Style)FindResource("MenuSeparator") });
-        menu.Items.Add(Item("Quit", "", () => Application.Current.Shutdown()));
+        menu.Items.Add(Item("Quit", "", () => { if (Application.Current.MainWindow is MainWindow mw) mw.QuitApp(); else Application.Current.Shutdown(); }));
         Panel.ContextMenu = menu;
         menu.PlacementTarget = Panel;
         menu.IsOpen = true;

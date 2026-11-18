@@ -45,6 +45,21 @@ public sealed class ReplayLedger
         /// <summary>Golden chest prizes the replay saw anyone get in this match.</summary>
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public List<PrizeSeen>? Prizes { get; set; }
+        /// <summary>Your teammates in this match with the chests and eliminations the replay saw (empty = solo; null = not read).</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public List<MateSeen>? Mates { get; set; }
+    }
+
+    /// <summary>A teammate in a match: name, chests the replay saw them open, and their eliminations.</summary>
+    public sealed class MateSeen
+    {
+        public string Name { get; set; } = "";
+        public int Chests { get; set; }
+        public int Broken { get; set; }
+        public int? Kills { get; set; }
+        public bool Bot { get; set; }
+        /// <summary>Queued with you in your party (a friend), rather than a random fill.</summary>
+        public bool Party { get; set; }
     }
 
     /// <summary>A golden chest prize seen in a match: who got it ("me", "teammate", "other") and what.</summary>
@@ -63,17 +78,37 @@ public sealed class ReplayLedger
     readonly object _gate = new();
     string _path = "";
 
+    /// <summary>How opening the saved file went (see <see cref="DataFile"/>).</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public LoadState LoadState { get; private set; }
+    [System.Text.Json.Serialization.JsonIgnore] public string? SetAside { get; private set; }
+    [System.Text.Json.Serialization.JsonIgnore] public string? BackupUsed { get; private set; }
+
     public static ReplayLedger Load(string path)
     {
-        ReplayLedger ledger;
-        try
+        var loaded = DataFile.Load(path, json =>
         {
-            ledger = File.Exists(path) ? JsonSerializer.Deserialize<ReplayLedger>(File.ReadAllText(path)) ?? new() : new();
-            ledger.Files = new Dictionary<string, Entry>(ledger.Files, StringComparer.OrdinalIgnoreCase);
-        }
-        catch (Exception) { ledger = new(); }
+            var l = JsonSerializer.Deserialize<ReplayLedger>(json);
+            if (l is null) return null;
+            l.Files = new Dictionary<string, Entry>((l.Files ?? new()).Where(kv => kv.Value is not null), StringComparer.OrdinalIgnoreCase);
+            return l;
+        }, () => new ReplayLedger());
+        var ledger = loaded.Value;
         ledger._path = path;
+        ledger.LoadState = loaded.State;
+        ledger.SetAside = loaded.SetAside;
+        ledger.BackupUsed = loaded.BackupUsed;
         return ledger;
+    }
+
+    /// <summary>Forgets entries (so their replays are read again). Returns how many.</summary>
+    public int Forget(Func<Entry, bool> which)
+    {
+        lock (_gate)
+        {
+            var keys = Files.Where(kv => which(kv.Value)).Select(kv => kv.Key).ToList();
+            foreach (var k in keys) Files.Remove(k);
+            return keys.Count;
+        }
     }
 
     public bool Has(string file) { lock (_gate) return Files.ContainsKey(file); }
@@ -91,20 +126,15 @@ public sealed class ReplayLedger
 
     public Entry? LastCounted()
     {
-        lock (_gate) return Files.Values.Where(e => !e.FromBefore && e.Note is null).OrderByDescending(e => e.When).FirstOrDefault();
+        // newest match played (an older match added from Settings is written later, but isn't your last match)
+        lock (_gate) return Files.Values.Where(e => !e.FromBefore && e.Note is null).OrderByDescending(e => e.MatchStartUtc ?? e.When).FirstOrDefault();
     }
 
     public void Save()
     {
         if (_path.Length == 0) return;
-        try
-        {
-            string json;
-            lock (_gate) json = JsonSerializer.Serialize(this, JsonOpts);
-            var tmp = _path + ".tmp";
-            File.WriteAllText(tmp, json);
-            File.Move(tmp, _path, overwrite: true);
-        }
-        catch (IOException) { }
+        string json;
+        lock (_gate) json = JsonSerializer.Serialize(this, JsonOpts);
+        DataFile.Save(_path, json);
     }
 }

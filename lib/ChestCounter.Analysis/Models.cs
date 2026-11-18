@@ -70,6 +70,8 @@ public sealed class TeammateRecord
     public bool InMyParty { get; set; }
     public List<ChestRecord> Chests { get; set; } = new();
     public int AmmoBoxes { get; set; }
+    /// <summary>Their eliminations at the end of the match (the game's kill score), if the replay has it.</summary>
+    public int? Kills { get; set; }
 }
 
 public sealed class MatchRecord
@@ -105,6 +107,54 @@ public sealed class MatchRecord
     public List<TeammateRecord> Teammates { get; set; } = new();
     /// <summary>Every golden chest prize the replay saw anyone get (you, teammates, other players nearby).</summary>
     public List<SeenPrize> SeenPrizes { get; set; } = new();
+    // Patch 20: the map of the match
+    /// <summary>Where you went, about one point a second (world units, seconds since the replay started).</summary>
+    public List<PathPoint> Path { get; set; } = new();
+    /// <summary>The bus route as a line through the island (x1, y1, x2, y2), worked out from where players jumped.</summary>
+    public float[]? BusLine { get; set; }
+    /// <summary>The storm circles announced while you were in the match, in order.</summary>
+    public List<StormCircle> Storm { get; set; } = new();
+    /// <summary>Your knocks and eliminations, and where you were knocked or eliminated.</summary>
+    public List<MapMark> Marks { get; set; } = new();
+    /// <summary>Chests opened by players outside your team close to where you went (the replay only sees players near you).</summary>
+    public List<SeenChest> OthersChests { get; set; } = new();
+}
+
+public sealed class PathPoint
+{
+    public float T { get; set; }
+    public float X { get; set; }
+    public float Y { get; set; }
+    /// <summary>Skydiving or gliding.</summary>
+    public bool Air { get; set; }
+}
+
+public sealed class StormCircle
+{
+    public float X { get; set; }
+    public float Y { get; set; }
+    public float Radius { get; set; }
+    public float ShrinkStart { get; set; }
+    public float ShrinkEnd { get; set; }
+}
+
+public sealed class MapMark
+{
+    /// <summary>"knock" / "elim" (you did it), "knocked" / "died" (it happened to you).</summary>
+    public string Kind { get; set; } = "";
+    public float X { get; set; }
+    public float Y { get; set; }
+    /// <summary>The other player, when the replay knows their name.</summary>
+    public string? Other { get; set; }
+    public bool OtherIsBot { get; set; }
+}
+
+public sealed class SeenChest
+{
+    public float T { get; set; }
+    public float X { get; set; }
+    public float Y { get; set; }
+    public bool Destroyed { get; set; }
 }
 
 public sealed class Config

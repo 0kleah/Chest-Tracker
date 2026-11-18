@@ -38,9 +38,17 @@ public sealed class FindStore
     public FindStore(string path)
     {
         _path = path;
-        try { _items = File.Exists(path) ? JsonSerializer.Deserialize<List<FoundItem>>(File.ReadAllText(path)) ?? new() : new(); }
-        catch (Exception) { _items = new(); }
+        Loaded = DataFile.Load(path, json =>
+        {
+            var items = JsonSerializer.Deserialize<List<FoundItem>>(json);
+            items?.RemoveAll(i => i is null);
+            return items;
+        }, () => new List<FoundItem>());
+        _items = Loaded.Value;
     }
+
+    /// <summary>How opening the saved file went (see <see cref="DataFile"/>).</summary>
+    public Loaded<List<FoundItem>> Loaded { get; }
 
     public List<FoundItem> All() { lock (_gate) return _items.OrderByDescending(i => i.WhenUtc ?? DateTime.MinValue).ToList(); }
 
@@ -88,9 +96,7 @@ public sealed class FindStore
 
     void Save()
     {
-        var tmp = _path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(_items, JsonOpts));
-        File.Move(tmp, _path, overwrite: true);
+        DataFile.Save(_path, JsonSerializer.Serialize(_items, JsonOpts));
     }
 }
 

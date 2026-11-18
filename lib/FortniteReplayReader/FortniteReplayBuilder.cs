@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using FortniteReplayReader.Models;
 using FortniteReplayReader.Models.NetFieldExports;
 using FortniteReplayReader.Models.NetFieldExports.Weapons;
@@ -364,7 +364,7 @@ public class FortniteReplayBuilder
             playerState.CurrentWeapon = pawn.CurrentWeapon;
         }
 
-        if (pawn.ReplicatedMovement != null)
+        if (pawn.ReplicatedMovement != null && KeepLocations)
         {
             var newLocation = new PlayerMovement
             {
@@ -394,6 +394,10 @@ public class FortniteReplayBuilder
         }
 
     }
+
+    /// <summary>Patch 20: keep every movement update in PlayerData.Locations (memory heavy). Readers that collect
+    /// their own thinned-out paths switch this off.</summary>
+    public static bool KeepLocations { get; set; } = true;
 
     public void UpdateInventory(uint channelIndex, FortInventory fortInventory)
     {

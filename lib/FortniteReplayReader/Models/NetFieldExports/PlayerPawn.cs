@@ -1,4 +1,4 @@
-﻿using FortniteReplayReader.Models.NetFieldExports.RPC;
+using FortniteReplayReader.Models.NetFieldExports.RPC;
 using Unreal.Core.Attributes;
 using Unreal.Core.Contracts;
 using Unreal.Core.Models;
@@ -43,7 +43,7 @@ public class PlayerPawn : INetFieldExportGroup
     [NetFieldExport("RemoteRole", RepLayoutCmdType.Ignore)]
     public int? RemoteRole { get; set; }
 
-    [NetFieldExport("ReplicatedMovement", RepLayoutCmdType.RepMovement, ParseMode.Full)]
+    [NetFieldExport("ReplicatedMovement", RepLayoutCmdType.RepMovement)]   // patch 20: read in Normal mode too (player paths)
     public FRepMovement? ReplicatedMovement { get; set; }
 
     [NetFieldExport("AttachParent", RepLayoutCmdType.Ignore)]

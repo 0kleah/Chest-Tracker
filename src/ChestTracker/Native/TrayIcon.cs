@@ -40,6 +40,11 @@ public sealed class TrayIcon : IDisposable
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)] static extern IntPtr ExtractIcon(IntPtr hInst, string file, int index);
     [DllImport("user32.dll")] static extern bool DestroyIcon(IntPtr icon);
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern uint RegisterWindowMessage(string name);
+
+    /// <summary>Windows sends this to every window when the taskbar is made again (after Explorer restarts).</summary>
+    static readonly uint TaskbarCreated = RegisterWindowMessage("TaskbarCreated");
+    string _tooltip = "";
 
     readonly HwndSource _window;
     readonly IntPtr _icon;
@@ -53,8 +58,14 @@ public sealed class TrayIcon : IDisposable
         _window = new HwndSource(new HwndSourceParameters("ChestTrackerTray") { Width = 0, Height = 0, WindowStyle = 0 });
         _window.AddHook(WndProc);
         _icon = ExtractIcon(IntPtr.Zero, Environment.ProcessPath ?? "", 0);
+        _tooltip = tooltip;
+        Add();
+    }
+
+    void Add()
+    {
         var data = Data(NIF_MESSAGE | NIF_ICON | NIF_TIP);
-        data.szTip = tooltip;
+        data.szTip = _tooltip.Length > 127 ? _tooltip[..127] : _tooltip;
         _added = Shell_NotifyIcon(NIM_ADD, ref data);
         data.uVersion = 4;
         Shell_NotifyIcon(NIM_SETVERSION, ref data);
@@ -75,6 +86,7 @@ public sealed class TrayIcon : IDisposable
 
     public void SetTooltip(string text)
     {
+        _tooltip = text;
         if (!_added) return;
         var data = Data(NIF_TIP);
         data.szTip = text.Length > 127 ? text[..127] : text;
@@ -104,6 +116,10 @@ public sealed class TrayIcon : IDisposable
             if (ev is WM_LBUTTONUP or WM_LBUTTONDBLCLK) Clicked?.Invoke();
             else if (ev == WM_RBUTTONUP) MenuRequested?.Invoke();
             handled = true;
+        }
+        else if (TaskbarCreated != 0 && (uint)msg == TaskbarCreated)
+        {
+            Add();   // Explorer restarted and forgot every tray icon: put ours back
         }
         return IntPtr.Zero;
     }

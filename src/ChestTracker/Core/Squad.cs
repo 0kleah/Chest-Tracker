@@ -53,9 +53,25 @@ public sealed class SquadStore
     public SquadStore(string path)
     {
         _path = path;
-        try { _data = File.Exists(path) ? JsonSerializer.Deserialize<Data>(File.ReadAllText(path)) ?? new() : new(); }
-        catch (Exception) { _data = new(); }
+        var loaded = DataFile.Load(path, json =>
+        {
+            var d = JsonSerializer.Deserialize<Data>(json);
+            if (d is null) return null;
+            d.People ??= new();
+            d.People.RemoveAll(p => p is null);
+            d.Matches ??= new();
+            return d;
+        }, () => new Data());
+        _data = loaded.Value;
+        LoadState = loaded.State;
+        SetAside = loaded.SetAside;
+        BackupUsed = loaded.BackupUsed;
     }
+
+    /// <summary>How opening the saved file went (see <see cref="DataFile"/>).</summary>
+    public LoadState LoadState { get; }
+    public string? SetAside { get; }
+    public string? BackupUsed { get; }
 
     public List<Squadmate> All()
     {
@@ -148,8 +164,6 @@ public sealed class SquadStore
 
     void Save()
     {
-        var tmp = _path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(_data, JsonOpts));
-        File.Move(tmp, _path, overwrite: true);
+        DataFile.Save(_path, JsonSerializer.Serialize(_data, JsonOpts));
     }
 }

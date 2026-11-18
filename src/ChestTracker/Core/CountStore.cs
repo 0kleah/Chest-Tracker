@@ -70,7 +70,20 @@ public sealed class CountStore
     public CountStore(string path)
     {
         _path = path;
-        _data = Load(path);
+        Loaded = DataFile.Load(path, Parse, () => new ChestCounts());
+        _data = Loaded.Value;
+    }
+
+    /// <summary>How opening the saved file went (see <see cref="DataFile"/>).</summary>
+    public Loaded<ChestCounts> Loaded { get; }
+
+    static ChestCounts? Parse(string json)
+    {
+        var data = JsonSerializer.Deserialize<ChestCounts>(json);
+        if (data is null) return null;
+        data.Log ??= new();
+        data.Log.RemoveAll(e => e is null);
+        return data;
     }
 
     public string FilePath => _path;
@@ -126,13 +139,17 @@ public sealed class CountStore
     /// A match's replay is the exact record of every chest you opened in it, so it replaces the
     /// guesses made during that match: screen-detected chests and ones added by hand (F7) between two
     /// local times are removed, then the replay's chests are added. Bulk "already opened" entries and
-    /// other replays' chests are kept. Returns the entries that were removed.
+    /// other replays' chests are kept. If this match's replay chests are somehow already there (a save
+    /// that failed half way), they're replaced too, so a match can never be counted twice.
+    /// Returns the entries that were removed.
     /// </summary>
     public List<ChestLogEntry> ReplaceAuto(DateTime fromLocal, DateTime toLocal, IReadOnlyList<ChestLogEntry> replayEntries)
     {
+        var matches = replayEntries.Select(e => e.Match).Where(m => !string.IsNullOrEmpty(m)).ToHashSet();
         lock (_gate)
         {
-            var removed = _data.Log.Where(e => IsGuess(e) && e.When is DateTime t && t >= fromLocal && t <= toLocal).ToList();
+            var removed = _data.Log.Where(e => (IsGuess(e) && e.When is DateTime t && t >= fromLocal && t <= toLocal)
+                                               || (e.Source == "replay" && e.Match is not null && matches.Contains(e.Match))).ToList();
             foreach (var e in removed)
             {
                 _data.Log.Remove(e);
@@ -261,21 +278,7 @@ public sealed class CountStore
             return _data.Log.Where(e => e.Source != "bulk" && e.When is DateTime t && t >= since).Sum(e => e.Chests);
     }
 
-    static ChestCounts Load(string path)
-    {
-        try
-        {
-            if (File.Exists(path))
-                return JsonSerializer.Deserialize<ChestCounts>(File.ReadAllText(path)) ?? new ChestCounts();
-        }
-        catch (Exception) { /* unreadable file: start fresh rather than crash */ }
-        return new ChestCounts();
-    }
-
-    void SaveLocked()
-    {
-        var tmp = _path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(_data, JsonOpts));
-        File.Move(tmp, _path, overwrite: true);
-    }
+    /// <summary>Saves the count. If the file can't be written right now, the count stays in memory and the next
+    /// change saves it again (<see cref="DataFile.SaveProblem"/> says why, and the app shows it).</summary>
+    void SaveLocked() => DataFile.Save(_path, JsonSerializer.Serialize(_data, JsonOpts));
 }

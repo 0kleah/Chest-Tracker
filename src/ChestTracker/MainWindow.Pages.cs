@@ -21,7 +21,7 @@ public partial class MainWindow
         StatMatchesHint.Text = st.Matches.Count == 0 ? "none yet" : $"since {st.Matches[0].Start:d MMM}";
         StatPerMatch.Text = st.PerMatch.ToString("0.0", CultureInfo.CurrentCulture);
         StatBest.Text = st.Best?.Chests.ToString("N0") ?? "0";
-        StatBestHint.Text = st.Best is { } b ? $"{b.Start:ddd d MMM, h:mm tt}" : "";
+        StatBestHint.Text = st.Best is { } b ? $"{b.Start:ddd d MMM, t}" : "";
         StatWeek.Text = st.ThisWeek.ToString("N0");
         StatToday.Text = $"{st.Today:N0} today";
 
@@ -32,7 +32,7 @@ public partial class MainWindow
             d.Count > 0 ? d.Count.ToString("N0") : "",
             d.Count == 0 ? 3 : 4 + 100.0 * d.Count / max,
             d.Day == DateTime.Today ? gold : d.Count > 0 ? (Brush)FindResource("GoldDeep") : dim,
-            d.Day == DateTime.Today ? "Today" : d.Day.ToString("ddd", CultureInfo.CurrentCulture)[..2],
+            d.Day == DateTime.Today ? "Today" : ShortDay(d.Day),
             $"{d.Day:dddd d MMM}: {d.Count:N0} chest{(d.Count == 1 ? "" : "s")}")).ToList();
 
         long kindTotal = Math.Max(1, st.ByKind.Sum(k => k.Count));
@@ -44,7 +44,7 @@ public partial class MainWindow
             new("Opened (from replays)", st.Opened.ToString("N0")),
             new("Broken open (from replays)", st.Broken.ToString("N0")),
         };
-        if (st.ByHand > 0) sources.Add(new("Added by hand (F7)", st.ByHand.ToString("N0")));
+        if (st.ByHand > 0) sources.Add(new("Added by hand", st.ByHand.ToString("N0")));
         if (st.Bulk > 0) sources.Add(new("Previous count you added", st.Bulk.ToString("N0")));
         long other = st.Total - st.Opened - st.Broken - st.ByHand - st.Bulk;
         if (other > 0) sources.Add(new("Old screen method", other.ToString("N0")));
@@ -52,6 +52,14 @@ public partial class MainWindow
         sources.Add(new("Total", st.Total.ToString("N0")));
         SourceList.ItemsSource = sources;
         RefreshEfficiency(st);
+    }
+
+    /// <summary>A day name of at most two letters ("Mo"; some languages' short names are a single character).</summary>
+    static string ShortDay(DateTime day)
+    {
+        var name = day.ToString("ddd", CultureInfo.CurrentCulture);
+        var info = new StringInfo(name);
+        return info.LengthInTextElements <= 2 ? name : info.SubstringByTextElements(0, 2);
     }
 
     // ================================================================== map
@@ -65,11 +73,13 @@ public partial class MainWindow
     void ReleaseMap()
     {
         _mapBitmap = null;
-        if (MapImage.Source is null && MapDots.Children.Count == 0 && RouteImage.Source is null) return;
+        if (MapImage.Source is null && MapDots.Children.Count == 0 && RouteImage.Source is null && RoutesImage.Source is null) return;
         MapImage.Source = null;
         MapDots.Children.Clear();
         RouteImage.Source = null;
         RouteCanvas.Children.Clear();
+        RoutesImage.Source = null;
+        RoutesCanvas.Children.Clear();
     }
 
     async Task RefreshMapAsync()
@@ -110,7 +120,7 @@ public partial class MainWindow
             {
                 Width = 11, Height = 11, StrokeThickness = 1.2, Stroke = edge, Opacity = 0.9,
                 Fill = e.Kind?.StartsWith("Sprite", StringComparison.Ordinal) == true ? sprite : e.Broken ? orange : gold,
-                ToolTip = $"{e.Kind ?? "Chest"} · {(e.Broken ? "broken open" : "opened")} · {e.When:ddd d MMM, h:mm tt}",
+                ToolTip = $"{e.Kind ?? "Chest"} · {(e.Broken ? "broken open" : "opened")} · {e.When:ddd d MMM, t}",
             };
             Canvas.SetLeft(dot, x - 5.5);
             Canvas.SetTop(dot, y - 5.5);
@@ -161,7 +171,7 @@ public partial class MainWindow
                 var end = h.EndUtc.ToLocalTime();
                 bool live = now >= h.StartUtc && now < h.EndUtc, ended = h.EndUtc <= now;
                 string tag = live ? "LIVE NOW" : ended ? "ENDED" : h == next ? "NEXT" : "UPCOMING";
-                return new HourRow($"{start:ddd d MMM} · {start:h:mm} – {end:h:mm tt}",
+                return new HourRow($"{start:ddd d MMM} · {start:t} – {end:t}",
                     $"Pirate Shop Access {h.Pirate:0.##}× · Gold Outfit {h.Gold:0.##}× · Vehicle & Decal {h.Vehicle:0.##}×",
                     tag, live ? greenSoft : h == next ? goldSoft : none,
                     live ? (Brush)FindResource("Green") : h == next ? gold : dim, ended ? 0.5 : 1);
@@ -194,7 +204,7 @@ public partial class MainWindow
             StatusOverall.Text = ok ? "Fortnite is up" : st.Overall;
             StatusOverall.Foreground = ok ? (Brush)FindResource("Green") : orange;
             StatusPill.Background = ok ? greenSoft : new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0x9A, 0x3C));
-            StatusSource.Text = $"From Epic's public status page · checked {st.FetchedUtc.ToLocalTime():h:mm tt}";
+            StatusSource.Text = $"From Epic's public status page · checked {st.FetchedUtc.ToLocalTime():t}";
             StatusParts.ItemsSource = st.Parts;
             StatusNotices.ItemsSource = st.Notices;
         }
@@ -205,9 +215,10 @@ public partial class MainWindow
         var info = _app.Treasure;
         var now = DateTime.UtcNow;
         var next = info.NextHour(now);
-        NextHourBoosts.Children.Clear();
+        if (!ReferenceEquals(next, _boostsFor) || NextHourBoosts.Children.Count == 0) NextHourBoosts.Children.Clear();
         if (next is null)
         {
+            _boostsFor = null;
             NextHourLabel.Text = "TREASURE HOURS";
             NextHourCountdown.Text = "None announced";
             NextHourWhen.Text = now > info.EventEndUtc ? "The Treasure Hunters event has ended." : "New Treasure Hours show up here when Epic announces them.";
@@ -219,7 +230,9 @@ public partial class MainWindow
         NextHourCountdown.Text = left.TotalDays >= 1 ? $"{(int)left.TotalDays}d {left.Hours}h {left.Minutes:00}m {left.Seconds:00}s"
                                                      : $"{left.Hours}h {left.Minutes:00}m {left.Seconds:00}s";
         var start = next.StartUtc.ToLocalTime();
-        NextHourWhen.Text = $"{When(start)} until {next.EndUtc.ToLocalTime():h:mm tt} (your time)";
+        NextHourWhen.Text = $"{When(start)} until {next.EndUtc.ToLocalTime():t} (your time)";
+        if (NextHourBoosts.Children.Count > 0) return;   // already shown for this hour
+        _boostsFor = next;
         foreach (var (name, boost) in new[] { ("Pirate Shop Access", next.Pirate), ("Gold Outfit", next.Gold), ("Vehicle & Decal", next.Vehicle) })
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 0, 6) };
@@ -232,6 +245,8 @@ public partial class MainWindow
             NextHourBoosts.Children.Add(row);
         }
     }
+
+    TreasureHour? _boostsFor;
 
     void RefreshStatus_Click(object sender, RoutedEventArgs e) => _ = _app.RefreshStatusAsync();
 }

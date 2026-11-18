@@ -6,11 +6,14 @@
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="..\..\src\ChestTracker\Core\*.cs" Link="Core\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\ChestTracker\Native\ScreenCapture.cs;..\..\src\ChestTracker\Native\Win32.cs;..\..\src\ChestTracker\Native\DesktopDuplication.cs" Link="Native\%(Filename)%(Extension)" />
     <ProjectReference Include="..\..\lib\ChestCounter.Analysis\ChestCounter.Analysis.csproj" />
   </ItemGroup>
 
